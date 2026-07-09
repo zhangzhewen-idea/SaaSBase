@@ -30,7 +30,7 @@
 
 创建或修改的主要文件：
 
-- `pom.xml`：Maven 项目、Spring Boot 4.1.0、Java 25、MyBatis-Plus、Flyway、Security、OpenAPI、Testcontainers、ArchUnit 依赖。
+- `pom.xml`：Maven 项目、Spring Boot 4.1.0、Java 25、MyBatis-Plus Boot 4 starter、Flyway、Security、OpenAPI、Testcontainers、ArchUnit 依赖。
 - `src/main/java/com/saasbase/SaaSBaseApplication.java`：应用入口。
 - `src/main/java/com/saasbase/common/**`：通用错误码、统一响应、分页、trace、租户和用户上下文。
 - `src/main/java/com/saasbase/auth/**`：认证 adapter/application/domain/infrastructure 分层代码。
@@ -89,6 +89,13 @@ class ColaArchitectureTest {
     static final ArchRule adapter_does_not_depend_on_infrastructure =
             noClasses().that().resideInAPackage("..adapter..")
                     .should().dependOnClassesThat().resideInAPackage("..infrastructure..");
+
+    @ArchTest
+    static final ArchRule infrastructure_does_not_depend_on_outer_layers =
+            noClasses().that().resideInAPackage("..infrastructure..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..adapter..",
+                            "..application..");
 }
 ```
 
@@ -126,7 +133,7 @@ class ColaArchitectureTest {
         <java.version>25</java.version>
         <mybatis-plus.version>3.5.14</mybatis-plus.version>
         <springdoc.version>3.0.0</springdoc.version>
-        <archunit.version>1.4.1</archunit.version>
+        <archunit.version>1.4.2</archunit.version>
         <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
@@ -153,7 +160,7 @@ class ColaArchitectureTest {
         </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
         <dependency>

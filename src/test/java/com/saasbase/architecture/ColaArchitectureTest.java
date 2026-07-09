@@ -30,4 +30,12 @@ class ColaArchitectureTest {
             noClasses().that().resideInAPackage("..adapter..")
                     .should().dependOnClassesThat().resideInAPackage("..infrastructure..")
                     .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule infrastructure_does_not_depend_on_outer_layers =
+            noClasses().that().resideInAPackage("..infrastructure..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..adapter..",
+                            "..application..")
+                    .allowEmptyShould(true);
 }

@@ -19,7 +19,7 @@
         <java.version>25</java.version>
         <mybatis-plus.version>3.5.14</mybatis-plus.version>
         <springdoc.version>3.0.0</springdoc.version>
-        <archunit.version>1.4.1</archunit.version>
+        <archunit.version>1.4.2</archunit.version>
         <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
@@ -46,7 +46,7 @@
         </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
         <dependency>
