@@ -1,5 +1,7 @@
 # .claudeignore 示例
 .idea/             # IntelliJ IDEA 目录
+target/             # 编译输出目录
+out/                # 输出目录
 node_modules/      # 依赖包目录（太大了，AI不需要看）
 .next/            # Next.js 构建产物
 dist/            # 编译输出
