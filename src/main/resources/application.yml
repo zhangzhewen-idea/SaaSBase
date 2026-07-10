@@ -19,3 +19,6 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+saasbase:
+  file:
+    root-path: ./data/files
