@@ -138,7 +138,7 @@ class ColaArchitectureTest {
         <mybatis-plus.version>3.5.14</mybatis-plus.version>
         <springdoc.version>3.0.0</springdoc.version>
         <archunit.version>1.4.2</archunit.version>
-        <testcontainers.version>1.21.3</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>

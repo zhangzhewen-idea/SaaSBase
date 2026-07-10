@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/saasbase?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: rootpass
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
