@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/saasbase?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: rootpass
+    username: ${SAASBASE_LOCAL_DATASOURCE_USERNAME:root}
+    password: ${SAASBASE_LOCAL_DATASOURCE_PASSWORD}
   flyway:
     enabled: true
   data:

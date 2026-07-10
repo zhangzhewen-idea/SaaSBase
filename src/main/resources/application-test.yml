@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${SAASBASE_TEST_DATASOURCE_URL:jdbc:mysql://192.168.50.6:3306/saasbase_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SAASBASE_TEST_DATASOURCE_USERNAME:root}
+    password: ${SAASBASE_TEST_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
