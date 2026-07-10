@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:tc:mysql:8.4:///saasbase
+    username: root
+    password: rootpass
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+management:
+  health:
+    redis:
+      enabled: false

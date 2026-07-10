@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: ${SAASBASE_DATASOURCE_URL}
+    username: ${SAASBASE_DATASOURCE_USERNAME}
+    password: ${SAASBASE_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: false
+  data:
+    redis:
+      host: ${SAASBASE_REDIS_HOST}
+      port: ${SAASBASE_REDIS_PORT:6379}
+      password: ${SAASBASE_REDIS_PASSWORD:}

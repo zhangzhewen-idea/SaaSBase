@@ -1,0 +1,12 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: saasbase
+    ports:
+      - "3306:3306"
+  redis:
+    image: redis:7.4
+    ports:
+      - "6379:6379"
