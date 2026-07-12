@@ -12,4 +12,4 @@ spring:
 saasbase:
   security:
     jwt:
-      secret: ${SAASBASE_DEV_JWT_SECRET:01234567890123456789012345678901}
+      secret: ${SAASBASE_DEV_JWT_SECRET}

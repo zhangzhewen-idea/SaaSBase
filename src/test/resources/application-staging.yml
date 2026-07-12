@@ -8,7 +8,7 @@ spring:
     enabled: true
   data:
     redis:
-      host: ${SAASBASE_TEST_REDIS_HOST:localhost}
+      host: ${SAASBASE_STAGING_REDIS_HOST:localhost}
       port: 6379
 management:
   health:
