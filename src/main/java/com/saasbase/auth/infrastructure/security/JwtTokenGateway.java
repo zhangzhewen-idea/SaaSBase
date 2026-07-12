@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @Component
 public class JwtTokenGateway implements TokenGateway {
@@ -48,6 +49,7 @@ public class JwtTokenGateway implements TokenGateway {
             payload.put("sub", String.valueOf(principal.userId()));
             payload.put("tenant_id", principal.tenantId());
             payload.put("username", principal.username());
+            payload.put("jti", UUID.randomUUID().toString());
             payload.put("permissions", new ArrayList<>(principal.permissions()));
             payload.put("iat", issuedAt.getEpochSecond());
             payload.put("exp", expiresAt.getEpochSecond());
@@ -63,6 +65,24 @@ public class JwtTokenGateway implements TokenGateway {
 
     @Override
     public UserPrincipal parseAccessToken(String token) {
+        Map<String, Object> payload = parsePayload(token);
+        Long userId = Long.valueOf(String.valueOf(payload.get("sub")));
+        Long tenantId = Long.valueOf(String.valueOf(payload.get("tenant_id")));
+        String username = String.valueOf(payload.get("username"));
+        Set<String> permissions = extractPermissions(payload.get("permissions"));
+        return new UserPrincipal(userId, tenantId, username, permissions);
+    }
+
+    @Override
+    public String parseTokenId(String token) {
+        Object tokenId = parsePayload(token).get("jti");
+        if (tokenId == null || String.valueOf(tokenId).isBlank()) {
+            throw new IllegalArgumentException("Token id is missing");
+        }
+        return String.valueOf(tokenId);
+    }
+
+    private Map<String, Object> parsePayload(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
             throw new IllegalArgumentException("Invalid token format");
@@ -76,11 +96,7 @@ public class JwtTokenGateway implements TokenGateway {
         try {
             Map<String, Object> payload = objectMapper.readValue(decode(parts[1]), Map.class);
             validateExpiry(payload.get("exp"));
-            Long userId = Long.valueOf(String.valueOf(payload.get("sub")));
-            Long tenantId = Long.valueOf(String.valueOf(payload.get("tenant_id")));
-            String username = String.valueOf(payload.get("username"));
-            Set<String> permissions = extractPermissions(payload.get("permissions"));
-            return new UserPrincipal(userId, tenantId, username, permissions);
+            return payload;
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Invalid token payload", ex);
         }

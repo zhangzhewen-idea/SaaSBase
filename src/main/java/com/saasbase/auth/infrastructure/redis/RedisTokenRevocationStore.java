@@ -1,12 +1,27 @@
 package com.saasbase.auth.infrastructure.redis;
 
 import com.saasbase.auth.domain.gateway.TokenRevocationStore;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
 
 @Component
 public class RedisTokenRevocationStore implements TokenRevocationStore {
+    private static final String PREFIX = "saasbase:auth:revoked:";
+    private final StringRedisTemplate redisTemplate;
+
+    public RedisTokenRevocationStore(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    public void revoke(String tokenId, long expiresAtEpochSecond) {
+        long ttl = Math.max(1, expiresAtEpochSecond - java.time.Instant.now().getEpochSecond());
+        redisTemplate.opsForValue().set(PREFIX + tokenId, "1", Duration.ofSeconds(ttl));
+    }
+
     @Override
     public boolean isRevoked(String tokenId) {
-        throw new UnsupportedOperationException("Redis token revocation store not implemented yet");
+        return Boolean.TRUE.equals(redisTemplate.hasKey(PREFIX + tokenId));
     }
 }

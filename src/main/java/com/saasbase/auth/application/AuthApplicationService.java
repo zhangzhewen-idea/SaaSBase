@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -50,13 +51,32 @@ public class AuthApplicationService {
     }
 
     public LoginResponse refresh(RefreshRequest request) {
-        if (!refreshTokenStore.exists(request.refreshToken())) {
+        String value = refreshTokenStore.find(request.refreshToken());
+        if (value == null) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
-        return new LoginResponse("Bearer", "refreshed-access-token", request.refreshToken(), 900);
+        UserPrincipal principal = parseRefreshValue(value);
+        refreshTokenStore.revoke(request.refreshToken());
+        String accessToken = tokenGateway.issueAccessToken(principal);
+        String nextRefreshToken = UUID.randomUUID().toString();
+        refreshTokenStore.save(nextRefreshToken, value, Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
+        return new LoginResponse("Bearer", accessToken, nextRefreshToken, 900);
     }
 
     public void logout(LogoutRequest request) {
         refreshTokenStore.revoke(request.refreshToken());
+    }
+
+    private UserPrincipal parseRefreshValue(String value) {
+        String[] parts = value.split("\\|", -1);
+        if (parts.length != 4) {
+            throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
+        }
+        Set<String> permissions = parts[3].isBlank() ? Set.of() : Set.of(parts[3].split(","));
+        try {
+            return new UserPrincipal(Long.valueOf(parts[0]), Long.valueOf(parts[1]), parts[2], permissions);
+        } catch (NumberFormatException exception) {
+            throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
+        }
     }
 }
