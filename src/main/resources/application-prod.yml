@@ -10,3 +10,7 @@ spring:
       host: ${SAASBASE_REDIS_HOST}
       port: ${SAASBASE_REDIS_PORT:6379}
       password: ${SAASBASE_REDIS_PASSWORD:}
+saasbase:
+  security:
+    jwt:
+      secret: ${SAASBASE_JWT_SECRET}

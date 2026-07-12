@@ -9,3 +9,7 @@ spring:
     redis:
       host: localhost
       port: 6379
+saasbase:
+  security:
+    jwt:
+      secret: 01234567890123456789012345678901

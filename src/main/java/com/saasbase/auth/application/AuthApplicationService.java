@@ -60,7 +60,7 @@ public class AuthApplicationService {
                 credential.username(),
                 credential.permissions()));
         String refreshToken = UUID.randomUUID().toString();
-        refreshTokenStore.save(refreshToken, refreshToken, Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
+        refreshTokenStore.save(refreshToken, serializeRefreshValue(credential), Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
         return new LoginResponse("Bearer", accessToken, refreshToken, 900);
     }
 
@@ -100,5 +100,10 @@ public class AuthApplicationService {
         } catch (NumberFormatException exception) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
+    }
+
+    private String serializeRefreshValue(UserCredential credential) {
+        String permissions = String.join(",", credential.permissions());
+        return credential.userId() + "|" + credential.tenantId() + "|" + credential.username() + "|" + permissions;
     }
 }

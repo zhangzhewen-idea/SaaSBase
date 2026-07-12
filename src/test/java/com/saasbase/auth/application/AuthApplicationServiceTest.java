@@ -42,6 +42,10 @@ class AuthApplicationServiceTest {
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.refreshToken()).isNotBlank();
         assertThat(refreshTokenStore.exists(response.refreshToken())).isTrue();
+
+        var refreshed = service.refresh(new RefreshRequest(response.refreshToken()));
+        assertThat(refreshed.accessToken()).isEqualTo("access-token");
+        assertThat(refreshed.refreshToken()).isNotEqualTo(response.refreshToken());
     }
 
     @Test

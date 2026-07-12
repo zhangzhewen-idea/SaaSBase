@@ -31,7 +31,7 @@ public class JwtTokenGateway implements TokenGateway {
     private final Duration tokenTtl;
 
     public JwtTokenGateway(
-            @Value("${saasbase.security.jwt.secret:01234567890123456789012345678901}") String secretKey,
+            @Value("${saasbase.security.jwt.secret}") String secretKey,
             @Value("${saasbase.security.jwt.ttl:PT15M}") Duration tokenTtl) {
         this.objectMapper = new ObjectMapper();
         this.secretKey = secretKey.getBytes(StandardCharsets.UTF_8);
