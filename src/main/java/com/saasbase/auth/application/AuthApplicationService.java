@@ -1,5 +1,10 @@
 package com.saasbase.auth.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.saasbase.audit.domain.SecurityAuditEvent;
+import com.saasbase.audit.domain.gateway.AuditGateway;
 import com.saasbase.auth.application.dto.LoginRequest;
 import com.saasbase.auth.application.dto.LoginResponse;
 import com.saasbase.auth.domain.UserCredential;
@@ -16,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -25,6 +31,8 @@ public class AuthApplicationService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenStore refreshTokenStore;
     private final TokenRevocationStore tokenRevocationStore;
+    private final ObjectMapper objectMapper;
+    private final AuditGateway auditGateway;
 
     @Autowired
     public AuthApplicationService(
@@ -32,12 +40,15 @@ public class AuthApplicationService {
             TokenGateway tokenGateway,
             PasswordEncoder passwordEncoder,
             RefreshTokenStore refreshTokenStore,
-            TokenRevocationStore tokenRevocationStore) {
+            TokenRevocationStore tokenRevocationStore,
+            AuditGateway auditGateway) {
         this.userCredentialGateway = userCredentialGateway;
         this.tokenGateway = tokenGateway;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenStore = refreshTokenStore;
         this.tokenRevocationStore = tokenRevocationStore;
+        this.objectMapper = new ObjectMapper();
+        this.auditGateway = auditGateway;
     }
 
     public AuthApplicationService(
@@ -48,12 +59,28 @@ public class AuthApplicationService {
         this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, (tokenId) -> false);
     }
 
+    private AuthApplicationService(
+            UserCredentialGateway userCredentialGateway,
+            TokenGateway tokenGateway,
+            PasswordEncoder passwordEncoder,
+            RefreshTokenStore refreshTokenStore,
+            TokenRevocationStore tokenRevocationStore) {
+        this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, tokenRevocationStore,
+                new NoopAuditGateway());
+    }
+
     public LoginResponse login(LoginRequest request) {
         UserCredential credential = userCredentialGateway.findByTenantCodeAndUsername(request.tenantCode(), request.username())
-                .orElseThrow(() -> new BizException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+                .orElseThrow(() -> {
+                    auditGateway.appendSecurityAudit(SecurityAuditEvent.loginFailure(null, request.username(), null));
+                    return new BizException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+                });
         if (!passwordEncoder.matches(request.password(), credential.passwordHash())) {
+            auditGateway.appendSecurityAudit(SecurityAuditEvent.loginFailure(credential.tenantId(), request.username(), null));
             throw new BizException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        auditGateway.appendSecurityAudit(SecurityAuditEvent.loginSuccess(
+                credential.tenantId(), credential.userId(), credential.username(), null));
         String accessToken = tokenGateway.issueAccessToken(new UserPrincipal(
                 credential.userId(),
                 credential.tenantId(),
@@ -97,20 +124,39 @@ public class AuthApplicationService {
     }
 
     private UserPrincipal parseRefreshValue(String value) {
-        String[] parts = value.split("\\|", -1);
-        if (parts.length != 4) {
-            throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
-        }
-        Set<String> permissions = parts[3].isBlank() ? Set.of() : Set.of(parts[3].split(","));
         try {
-            return new UserPrincipal(Long.valueOf(parts[0]), Long.valueOf(parts[1]), parts[2], permissions);
-        } catch (NumberFormatException exception) {
+            Map<String, Object> data = objectMapper.readValue(value, new TypeReference<>() {
+            });
+            Long userId = Long.valueOf(String.valueOf(data.get("userId")));
+            Long tenantId = Long.valueOf(String.valueOf(data.get("tenantId")));
+            String username = String.valueOf(data.get("username"));
+            Set<String> permissions = objectMapper.convertValue(data.get("permissions"), new TypeReference<>() {
+            });
+            return new UserPrincipal(userId, tenantId, username, permissions);
+        } catch (Exception exception) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
     }
 
     private String serializeRefreshValue(UserCredential credential) {
-        String permissions = String.join(",", credential.permissions());
-        return credential.userId() + "|" + credential.tenantId() + "|" + credential.username() + "|" + permissions;
+        try {
+            return objectMapper.writeValueAsString(Map.of(
+                    "userId", credential.userId(),
+                    "tenantId", credential.tenantId(),
+                    "username", credential.username(),
+                    "permissions", credential.permissions()));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize refresh session", exception);
+        }
+    }
+
+    private static final class NoopAuditGateway implements AuditGateway {
+        @Override
+        public void appendSecurityAudit(SecurityAuditEvent event) {
+        }
+
+        @Override
+        public void appendAdminOperationAudit(com.saasbase.audit.domain.AdminOperationAuditEvent event) {
+        }
     }
 }

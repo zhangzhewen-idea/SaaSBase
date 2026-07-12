@@ -53,7 +53,7 @@ class AuthApplicationServiceTest {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.empty();
         InMemoryRefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
-        refreshTokenStore.save("refresh-1", "1001|2001|alice|tenant:user:read", Long.MAX_VALUE);
+        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"]}", Long.MAX_VALUE);
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
             public String issueAccessToken(UserPrincipal principal) {

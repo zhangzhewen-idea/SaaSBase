@@ -20,9 +20,10 @@ public class AuditMapper implements AuditGateway {
     public void appendSecurityAudit(SecurityAuditEvent event) {
         jdbcTemplate.update("""
                 INSERT INTO security_audit_log
-                    (id, tenant_id, user_id, event_type, result, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, id(), event.tenantId(), event.userId(), event.eventType(), event.result(), event.createdAt());
+                    (id, tenant_id, user_id, username, event_type, result, client_ip, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, id(), event.tenantId(), event.userId(), event.username(), event.eventType(), event.result(),
+                event.clientIp(), event.createdAt());
     }
 
     @Override
