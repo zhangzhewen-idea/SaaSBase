@@ -61,4 +61,16 @@ class RedisAuthStoreIntegrationTest {
 
         assertThat(store.isRevoked("jti-integration")).isTrue();
     }
+
+    @Test
+    void rotates_refresh_token_atomically() {
+        RedisRefreshTokenStore store = new RedisRefreshTokenStore(redisTemplate);
+        long expiresAt = java.time.Instant.now().plusSeconds(3600).getEpochSecond();
+        store.save("refresh-old", "session-a", expiresAt);
+
+        assertThat(store.rotate("refresh-old", "session-a", "refresh-new", "session-a", expiresAt)).isTrue();
+        assertThat(store.exists("refresh-old")).isFalse();
+        assertThat(store.find("refresh-new")).isEqualTo("session-a");
+        assertThat(store.rotate("refresh-old", "session-a", "refresh-again", "session-a", expiresAt)).isFalse();
+    }
 }

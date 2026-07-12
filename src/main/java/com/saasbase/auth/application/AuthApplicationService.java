@@ -70,10 +70,17 @@ public class AuthApplicationService {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
         UserPrincipal principal = parseRefreshValue(value);
-        refreshTokenStore.revoke(request.refreshToken());
         String accessToken = tokenGateway.issueAccessToken(principal);
         String nextRefreshToken = UUID.randomUUID().toString();
-        refreshTokenStore.save(nextRefreshToken, value, Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
+        boolean rotated = refreshTokenStore.rotate(
+                request.refreshToken(),
+                value,
+                nextRefreshToken,
+                value,
+                Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
+        if (!rotated) {
+            throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
+        }
         return new LoginResponse("Bearer", accessToken, nextRefreshToken, 900);
     }
 
