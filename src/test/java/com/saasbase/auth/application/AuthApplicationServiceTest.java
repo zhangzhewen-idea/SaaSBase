@@ -42,6 +42,10 @@ class AuthApplicationServiceTest {
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.refreshToken()).isNotBlank();
         assertThat(refreshTokenStore.exists(response.refreshToken())).isTrue();
+
+        var refreshed = service.refresh(new RefreshRequest(response.refreshToken()));
+        assertThat(refreshed.accessToken()).isEqualTo("access-token");
+        assertThat(refreshed.refreshToken()).isNotEqualTo(response.refreshToken());
     }
 
     @Test
@@ -49,7 +53,7 @@ class AuthApplicationServiceTest {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.empty();
         InMemoryRefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
-        refreshTokenStore.save("refresh-1", "refresh-1", Long.MAX_VALUE);
+        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"]}", Long.MAX_VALUE);
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
             public String issueAccessToken(UserPrincipal principal) {
@@ -65,8 +69,9 @@ class AuthApplicationServiceTest {
 
         var response = service.refresh(new RefreshRequest("refresh-1"));
 
-        assertThat(response.accessToken()).isEqualTo("refreshed-access-token");
-        assertThat(response.refreshToken()).isEqualTo("refresh-1");
+        assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.refreshToken()).isNotEqualTo("refresh-1");
+        assertThat(refreshTokenStore.exists("refresh-1")).isFalse();
     }
 
     @Test
@@ -104,6 +109,11 @@ class AuthApplicationServiceTest {
         @Override
         public boolean exists(String tokenId) {
             return tokens.containsKey(tokenId);
+        }
+
+        @Override
+        public String find(String tokenId) {
+            return tokens.get(tokenId);
         }
 
         @Override

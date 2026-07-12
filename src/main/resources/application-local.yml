@@ -9,3 +9,7 @@ spring:
     redis:
       host: ${SAASBASE_LOCAL_REDIS_HOST:localhost}
       port: 6379
+saasbase:
+  security:
+    jwt:
+      secret: ${SAASBASE_LOCAL_JWT_SECRET:01234567890123456789012345678901}

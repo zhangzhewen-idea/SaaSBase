@@ -28,6 +28,8 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
     private void writeError(HttpServletResponse response, int status) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"code\":" + status + "}");
+        String code = status == HttpServletResponse.SC_UNAUTHORIZED ? "AUTH_UNAUTHORIZED" : "AUTH_FORBIDDEN";
+        String message = status == HttpServletResponse.SC_UNAUTHORIZED ? "未登录或登录状态已失效" : "权限不足";
+        response.getWriter().write("{\"success\":false,\"code\":\"" + code + "\",\"message\":\"" + message + "\"}");
     }
 }
