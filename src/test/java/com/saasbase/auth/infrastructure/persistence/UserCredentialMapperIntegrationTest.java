@@ -2,7 +2,9 @@ package com.saasbase.auth.infrastructure.persistence;
 
 import com.saasbase.auth.domain.UserCredential;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
+import com.saasbase.common.tenant.TenantContextHolder;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,12 +44,18 @@ class UserCredentialMapperIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
+        TenantContextHolder.clear();
         jdbcTemplate.update("DELETE FROM iam_role_permission");
         jdbcTemplate.update("DELETE FROM iam_user_role");
         jdbcTemplate.update("DELETE FROM iam_permission");
         jdbcTemplate.update("DELETE FROM iam_role");
         jdbcTemplate.update("DELETE FROM iam_user");
         jdbcTemplate.update("DELETE FROM tenant");
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
     }
 
     @Test
@@ -157,6 +165,29 @@ class UserCredentialMapperIntegrationTest {
                 .get()
                 .extracting(UserCredential::permissions)
                 .isEqualTo(Set.of("user:read"));
+    }
+
+    @Test
+    void doesNotAggregatePermissionsFromCrossTenantDirtyAssociationsWithoutTenantContext() {
+        insertTenant(1L, "tenant-a", "ACTIVE");
+        insertTenant(2L, "tenant-b", "ACTIVE");
+        insertUser(11L, 1L, "alice", "hash-a", "ACTIVE", false);
+        insertRole(201L, 2L, "tenant-b-role");
+        insertPermission(2001L, "tenant-b:read");
+        jdbcTemplate.update("INSERT INTO iam_user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)",
+                1L, 11L, 201L);
+        jdbcTemplate.update("INSERT INTO iam_role_permission (tenant_id, role_id, permission_id) VALUES (?, ?, ?)",
+                2L, 201L, 2001L);
+
+        TenantContextHolder.clear();
+        try {
+            assertThat(gateway.findByTenantCodeAndUsername("tenant-a", "alice"))
+                    .get()
+                    .extracting(UserCredential::permissions)
+                    .isEqualTo(Set.of());
+        } finally {
+            TenantContextHolder.clear();
+        }
     }
 
     private void insertTenant(long id, String code, String status) {
