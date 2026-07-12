@@ -37,6 +37,16 @@ class CreateTenantRequestValidationTest {
     }
 
     @Test
+    void toStringRedactsPasswordWhileKeepingDiagnosticFields() {
+        CreateTenantRequest request = request("abc", "Acme", "admin", "Administrator", "secret-value-123");
+
+        assertThat(request.toString())
+                .contains("tenantCode=abc", "tenantName=Acme", "adminUsername=admin",
+                        "adminDisplayName=Administrator", "initialPassword=<redacted>")
+                .doesNotContain("secret-value-123");
+    }
+
+    @Test
     void rejectsEveryBlankRequiredField() {
         assertThat(validator.validate(request(" ", "name", "admin", "Admin", "123456789012"))).isNotEmpty();
         assertThat(validator.validate(request("abc", " ", "admin", "Admin", "123456789012"))).isNotEmpty();

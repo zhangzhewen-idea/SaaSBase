@@ -11,4 +11,13 @@ public record CreateTenantRequest(
         @NotBlank @Size(max = 128) String tenantName,
         @NotBlank @Size(max = 64) String adminUsername,
         @NotBlank @Size(max = 128) String adminDisplayName,
-        @NotBlank @Size(min = 12, max = 72) String initialPassword) {}
+        @NotBlank @Size(min = 12, max = 72) String initialPassword) {
+    @Override
+    public String toString() {
+        return "CreateTenantRequest[tenantCode=" + tenantCode
+                + ", tenantName=" + tenantName
+                + ", adminUsername=" + adminUsername
+                + ", adminDisplayName=" + adminDisplayName
+                + ", initialPassword=<redacted>]";
+    }
+}
