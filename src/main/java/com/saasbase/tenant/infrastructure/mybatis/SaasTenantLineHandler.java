@@ -1,6 +1,7 @@
 package com.saasbase.tenant.infrastructure.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
+import com.saasbase.common.tenant.TenantContext;
 import com.saasbase.common.tenant.TenantContextHolder;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
@@ -22,6 +23,10 @@ public class SaasTenantLineHandler implements TenantLineHandler {
 
     @Override
     public boolean ignoreTable(String tableName) {
-        return IGNORE_TABLES.contains(tableName);
+        if (IGNORE_TABLES.contains(tableName)) {
+            return true;
+        }
+        TenantContext context = TenantContextHolder.require();
+        return context.platformRequest();
     }
 }

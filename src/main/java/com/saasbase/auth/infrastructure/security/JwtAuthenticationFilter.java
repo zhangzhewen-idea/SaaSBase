@@ -49,7 +49,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 .collect(Collectors.toUnmodifiableList()));
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                TenantContextHolder.set(new TenantContext(principal.tenantId(), principal.userId(), false));
+                boolean platformRequest = principal.permissions().stream()
+                        .anyMatch(permission -> permission.startsWith("platform:"));
+                TenantContextHolder.set(new TenantContext(principal.tenantId(), principal.userId(), platformRequest));
             }
             filterChain.doFilter(request, response);
         } catch (RuntimeException exception) {
