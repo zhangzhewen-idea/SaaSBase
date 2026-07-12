@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.saasbase.audit.infrastructure.persistence.SecurityAuditMapper">
+    <insert id="insert">
+        INSERT INTO security_audit_log
+            (id, tenant_id, user_id, username, event_type, result, client_ip, created_at)
+        VALUES
+            (#{id}, #{event.tenantId}, #{event.userId}, #{event.username}, #{event.eventType},
+             #{event.result}, #{event.clientIp}, #{event.createdAt})
+    </insert>
+</mapper>
