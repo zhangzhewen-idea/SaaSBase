@@ -6,11 +6,13 @@ import com.saasbase.auth.domain.UserCredential;
 import com.saasbase.auth.domain.UserPrincipal;
 import com.saasbase.auth.domain.gateway.RefreshTokenStore;
 import com.saasbase.auth.domain.gateway.TokenGateway;
+import com.saasbase.auth.domain.gateway.TokenRevocationStore;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
 import com.saasbase.common.error.BizException;
 import com.saasbase.common.error.ErrorCode;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.util.Set;
@@ -22,16 +24,28 @@ public class AuthApplicationService {
     private final TokenGateway tokenGateway;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenStore refreshTokenStore;
+    private final TokenRevocationStore tokenRevocationStore;
+
+    @Autowired
+    public AuthApplicationService(
+            UserCredentialGateway userCredentialGateway,
+            TokenGateway tokenGateway,
+            PasswordEncoder passwordEncoder,
+            RefreshTokenStore refreshTokenStore,
+            TokenRevocationStore tokenRevocationStore) {
+        this.userCredentialGateway = userCredentialGateway;
+        this.tokenGateway = tokenGateway;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenStore = refreshTokenStore;
+        this.tokenRevocationStore = tokenRevocationStore;
+    }
 
     public AuthApplicationService(
             UserCredentialGateway userCredentialGateway,
             TokenGateway tokenGateway,
             PasswordEncoder passwordEncoder,
             RefreshTokenStore refreshTokenStore) {
-        this.userCredentialGateway = userCredentialGateway;
-        this.tokenGateway = tokenGateway;
-        this.passwordEncoder = passwordEncoder;
-        this.refreshTokenStore = refreshTokenStore;
+        this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, (tokenId) -> false);
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -63,8 +77,16 @@ public class AuthApplicationService {
         return new LoginResponse("Bearer", accessToken, nextRefreshToken, 900);
     }
 
-    public void logout(LogoutRequest request) {
+    public void logout(LogoutRequest request, String accessToken) {
         refreshTokenStore.revoke(request.refreshToken());
+        if (accessToken != null && !accessToken.isBlank()) {
+            String tokenId = tokenGateway.parseTokenId(accessToken);
+            tokenRevocationStore.revoke(tokenId, Instant.now().plusSeconds(900).getEpochSecond());
+        }
+    }
+
+    public void logout(LogoutRequest request) {
+        logout(request, null);
     }
 
     private UserPrincipal parseRefreshValue(String value) {

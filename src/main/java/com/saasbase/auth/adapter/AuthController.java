@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,8 +34,13 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody LogoutRequest request) {
-        authApplicationService.logout(request);
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody LogoutRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String accessToken = authorization != null && authorization.startsWith("Bearer ")
+                ? authorization.substring("Bearer ".length())
+                : null;
+        authApplicationService.logout(request, accessToken);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

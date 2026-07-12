@@ -15,6 +15,7 @@ public class RedisTokenRevocationStore implements TokenRevocationStore {
         this.redisTemplate = redisTemplate;
     }
 
+    @Override
     public void revoke(String tokenId, long expiresAtEpochSecond) {
         long ttl = Math.max(1, expiresAtEpochSecond - java.time.Instant.now().getEpochSecond());
         redisTemplate.opsForValue().set(PREFIX + tokenId, "1", Duration.ofSeconds(ttl));
