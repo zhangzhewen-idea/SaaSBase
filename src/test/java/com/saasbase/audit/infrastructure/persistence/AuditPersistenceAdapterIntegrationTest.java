@@ -16,7 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,7 +36,8 @@ class AuditPersistenceAdapterIntegrationTest {
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", mysql::getJdbcUrl);
+        registry.add("spring.datasource.url", () -> mysql.getJdbcUrl()
+                + "?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true");
         registry.add("spring.datasource.username", mysql::getUsername);
         registry.add("spring.datasource.password", mysql::getPassword);
         registry.add("spring.flyway.enabled", () -> true);
@@ -59,7 +60,7 @@ class AuditPersistenceAdapterIntegrationTest {
         assertThat(row).containsEntry("tenant_id", 7L).containsEntry("user_id", 8L)
                 .containsEntry("username", "alice").containsEntry("event_type", "LOGIN")
                 .containsEntry("result", "SUCCESS").containsEntry("client_ip", "127.0.0.1")
-                .containsEntry("created_at", localDateTime(createdAt));
+                .containsEntry("created_at", utcDateTime(createdAt));
     }
 
     @Test
@@ -73,10 +74,10 @@ class AuditPersistenceAdapterIntegrationTest {
         assertThat(row).containsEntry("tenant_id", 7L).containsEntry("user_id", 8L)
                 .containsEntry("operation_type", "CREATE").containsEntry("resource_type", "USER")
                 .containsEntry("resource_id", "11").containsEntry("trace_id", "trace-1")
-                .containsEntry("created_at", localDateTime(createdAt));
+                .containsEntry("created_at", utcDateTime(createdAt));
     }
 
-    private LocalDateTime localDateTime(Instant instant) {
-        return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+    private LocalDateTime utcDateTime(Instant instant) {
+        return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
     }
 }
