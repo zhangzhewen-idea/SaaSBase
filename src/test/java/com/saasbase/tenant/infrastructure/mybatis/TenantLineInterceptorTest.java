@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TenantLineInterceptorTest {
 
@@ -28,5 +29,14 @@ class TenantLineInterceptorTest {
 
         assertThat(handler.ignoreTable("tenant")).isTrue();
         assertThat(handler.ignoreTable("iam_user")).isFalse();
+    }
+
+    @Test
+    void rejects_tenant_sql_without_request_context() {
+        SaasTenantLineHandler handler = new SaasTenantLineHandler();
+
+        assertThatThrownBy(handler::getTenantId)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("tenant context is required");
     }
 }

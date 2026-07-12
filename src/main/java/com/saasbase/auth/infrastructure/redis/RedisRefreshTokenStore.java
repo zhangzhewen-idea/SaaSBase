@@ -4,7 +4,7 @@ import com.saasbase.auth.domain.gateway.RefreshTokenStore;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class RedisRefreshTokenStore implements RefreshTokenStore {
@@ -18,7 +18,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public void save(String tokenId, String tokenValue, long expiresAtEpochSecond) {
         long ttl = Math.max(1, expiresAtEpochSecond - java.time.Instant.now().getEpochSecond());
-        redisTemplate.opsForValue().set(PREFIX + tokenId, tokenValue, Duration.ofSeconds(ttl));
+        redisTemplate.opsForValue().set(PREFIX + tokenId, tokenValue, ttl, TimeUnit.SECONDS);
     }
 
     @Override

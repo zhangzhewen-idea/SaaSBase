@@ -4,7 +4,7 @@ import com.saasbase.auth.domain.gateway.TokenRevocationStore;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class RedisTokenRevocationStore implements TokenRevocationStore {
@@ -18,7 +18,7 @@ public class RedisTokenRevocationStore implements TokenRevocationStore {
     @Override
     public void revoke(String tokenId, long expiresAtEpochSecond) {
         long ttl = Math.max(1, expiresAtEpochSecond - java.time.Instant.now().getEpochSecond());
-        redisTemplate.opsForValue().set(PREFIX + tokenId, "1", Duration.ofSeconds(ttl));
+        redisTemplate.opsForValue().set(PREFIX + tokenId, "1", ttl, TimeUnit.SECONDS);
     }
 
     @Override
