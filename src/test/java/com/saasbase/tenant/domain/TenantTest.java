@@ -11,7 +11,7 @@ class TenantTest {
 
     @Test
     void creates_active_tenant_with_initial_versions() {
-        Tenant tenant = Tenant.create("acme", "Acme");
+        Tenant tenant = Tenant.create("  acme  ", "Acme");
 
         assertThat(tenant.id()).isNull();
         assertThat(tenant.tenantCode()).isEqualTo("acme");
@@ -23,10 +23,16 @@ class TenantTest {
 
     @Test
     void rejects_invalid_creation_input() {
+        assertThatThrownBy(() -> Tenant.create(null, "Acme"))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Tenant.create(" ", "Acme"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Tenant.create("acme", null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Tenant.create("acme", " "))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThat(Tenant.create("acme", "  " + "a".repeat(128) + "  ").tenantName())
+                .hasSize(128);
         assertThatThrownBy(() -> Tenant.create("acme", "a".repeat(129)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
@@ -43,6 +49,8 @@ class TenantTest {
         assertThatThrownBy(() -> Tenant.reconstitute(1L, "acme", "Acme", TenantStatus.ACTIVE, -1, 0))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Tenant.reconstitute(1L, "acme", "Acme", TenantStatus.ACTIVE, 0, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Tenant.reconstitute(1L, "acme", "Acme", null, 0, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -84,5 +92,35 @@ class TenantTest {
                 .isInstanceOf(BizException.class)
                 .extracting(exception -> ((BizException) exception).errorCode())
                 .isEqualTo(ErrorCode.TENANT_STATUS_CONFLICT);
+    }
+
+    @Test
+    void rejects_auth_state_for_unpersisted_tenant() {
+        Tenant tenant = Tenant.create("acme", "Acme");
+
+        assertThatThrownBy(tenant::authState)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("persisted");
+    }
+
+    @Test
+    void rejects_invalid_tenant_auth_state() {
+        assertThatThrownBy(() -> new TenantAuthState(null, TenantStatus.ACTIVE, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TenantAuthState(1L, null, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TenantAuthState(1L, TenantStatus.ACTIVE, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void disable_rejects_session_version_overflow_without_changing_state() {
+        Tenant tenant = Tenant.reconstitute(
+                1L, "acme", "Acme", TenantStatus.ACTIVE, Long.MAX_VALUE, 7);
+
+        assertThatThrownBy(tenant::disable).isInstanceOf(ArithmeticException.class);
+        assertThat(tenant.status()).isEqualTo(TenantStatus.ACTIVE);
+        assertThat(tenant.sessionVersion()).isEqualTo(Long.MAX_VALUE);
+        assertThat(tenant.version()).isEqualTo(7);
     }
 }

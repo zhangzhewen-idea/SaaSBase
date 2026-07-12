@@ -53,6 +53,9 @@ public final class Tenant {
         if (status != TenantStatus.ACTIVE) {
             throw new BizException(ErrorCode.TENANT_STATUS_CONFLICT);
         }
+        if (sessionVersion == Long.MAX_VALUE) {
+            throw new ArithmeticException("sessionVersion overflow");
+        }
         status = TenantStatus.DISABLED;
         sessionVersion++;
     }
@@ -65,6 +68,9 @@ public final class Tenant {
     }
 
     public TenantAuthState authState() {
+        if (id == null) {
+            throw new IllegalStateException("Tenant must be persisted before creating auth state");
+        }
         return new TenantAuthState(id, status, sessionVersion);
     }
 
