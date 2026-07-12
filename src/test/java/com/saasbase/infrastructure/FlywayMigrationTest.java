@@ -7,6 +7,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.DriverManager;
+import java.util.LinkedHashMap;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,29 +22,45 @@ class FlywayMigrationTest {
             .withPassword("rootpass");
 
     @Test
-    void migrates_core_schema() throws Exception {
-        Flyway.configure()
-                .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
-                .locations("classpath:db/migration")
-                .load()
-                .migrate();
+    void migrates_core_schema_and_tenant_management_baseline() throws Exception {
+        cleanDatabase();
+        flyway().migrate();
 
         try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())) {
-            try (var columns = connection.getMetaData().getColumns(null, null, "tenant", "session_version")) {
-                assertThat(columns.next()).isTrue();
+            var expectedCoreTables = Set.of("tenant", "iam_user", "iam_role", "iam_permission");
+            try (var tables = connection.getMetaData().getTables(null, null, null, new String[]{"TABLE"})) {
+                var actualTables = new java.util.HashSet<String>();
+                while (tables.next()) {
+                    actualTables.add(tables.getString("TABLE_NAME"));
+                }
+                assertThat(actualTables).containsAll(expectedCoreTables);
             }
 
-            var expectedPermissionCodes = Set.of(
-                    "platform:tenant:create",
-                    "platform:tenant:read",
-                    "platform:tenant:update",
-                    "platform:tenant:enable",
-                    "platform:tenant:disable",
-                    "tenant:profile:read"
-            );
+            try (var statement = connection.prepareStatement("""
+                    SELECT IS_NULLABLE, COLUMN_DEFAULT
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'tenant'
+                      AND column_name = 'session_version'
+                    """);
+                 var column = statement.executeQuery()) {
+                assertThat(column.next()).isTrue();
+                assertThat(column.getString("IS_NULLABLE")).isEqualTo("NO");
+                assertThat(String.valueOf(column.getObject("COLUMN_DEFAULT"))).isEqualTo("0");
+                assertThat(column.next()).isFalse();
+            }
+
+            var expectedPermissions = new LinkedHashMap<String, Permission>();
+            expectedPermissions.put("platform:tenant:create", new Permission(900000000000000101L, "创建租户"));
+            expectedPermissions.put("platform:tenant:read", new Permission(900000000000000102L, "查看租户"));
+            expectedPermissions.put("platform:tenant:update", new Permission(900000000000000103L, "更新租户"));
+            expectedPermissions.put("platform:tenant:enable", new Permission(900000000000000104L, "启用租户"));
+            expectedPermissions.put("platform:tenant:disable", new Permission(900000000000000105L, "停用租户"));
+            expectedPermissions.put("tenant:profile:read", new Permission(900000000000000106L, "查看租户资料"));
+
             try (var statement = connection.createStatement();
                  var permissions = statement.executeQuery("""
-                         SELECT permission_code
+                         SELECT id, permission_code, permission_name, permission_type, created_at
                          FROM iam_permission
                          WHERE permission_code IN (
                              'platform:tenant:create',
@@ -54,12 +71,67 @@ class FlywayMigrationTest {
                              'tenant:profile:read'
                          )
                          """)) {
-                var actualPermissionCodes = new java.util.HashSet<String>();
+                var remainingPermissions = new LinkedHashMap<>(expectedPermissions);
                 while (permissions.next()) {
-                    actualPermissionCodes.add(permissions.getString("permission_code"));
+                    var permission = remainingPermissions.remove(permissions.getString("permission_code"));
+                    assertThat(permission).isNotNull();
+                    assertThat(permissions.getLong("id")).isEqualTo(permission.id());
+                    assertThat(permissions.getString("permission_name")).isEqualTo(permission.name());
+                    assertThat(permissions.getString("permission_type")).isEqualTo("API");
+                    assertThat(permissions.getTimestamp("created_at")).isNotNull();
                 }
-                assertThat(actualPermissionCodes).containsExactlyInAnyOrderElementsOf(expectedPermissionCodes);
+                assertThat(remainingPermissions).isEmpty();
             }
         }
+    }
+
+    @Test
+    void migrates_existing_tenant_from_v2_to_v3_with_default_session_version() throws Exception {
+        cleanDatabase();
+        Flyway.configure()
+                .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
+                .locations("classpath:db/migration")
+                .target("2")
+                .load()
+                .migrate();
+
+        try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    INSERT INTO tenant (
+                        id, tenant_code, tenant_name, status, created_at, updated_at
+                    ) VALUES (
+                        1, 'existing-tenant', '存量租户', 'ENABLED', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
+                    )
+                    """);
+        }
+
+        flyway().migrate();
+
+        try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             var statement = connection.createStatement();
+             var tenant = statement.executeQuery("SELECT session_version FROM tenant WHERE id = 1")) {
+            assertThat(tenant.next()).isTrue();
+            assertThat(tenant.getLong("session_version")).isZero();
+            assertThat(tenant.next()).isFalse();
+        }
+    }
+
+    private Flyway flyway() {
+        return Flyway.configure()
+                .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
+                .locations("classpath:db/migration")
+                .load();
+    }
+
+    private void cleanDatabase() {
+        Flyway.configure()
+                .dataSource(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())
+                .cleanDisabled(false)
+                .load()
+                .clean();
+    }
+
+    private record Permission(long id, String name) {
     }
 }
