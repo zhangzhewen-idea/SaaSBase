@@ -78,6 +78,15 @@ class UserCredentialMapperIntegrationTest {
     }
 
     @Test
+    void doesNotFindUserInLogicallyDeletedTenant() {
+        insertTenant(1L, "tenant-a", "ACTIVE");
+        insertUser(11L, 1L, "alice", "hash-a", "ACTIVE", false);
+        jdbcTemplate.update("UPDATE tenant SET deleted = 1 WHERE id = ?", 1L);
+
+        assertThat(gateway.findByTenantCodeAndUsername("tenant-a", "alice")).isEmpty();
+    }
+
+    @Test
     void doesNotFindUserInMissingTenant() {
         insertTenant(1L, "tenant-a", "ACTIVE");
         insertUser(11L, 1L, "alice", "hash-a", "ACTIVE", false);
@@ -113,6 +122,41 @@ class UserCredentialMapperIntegrationTest {
                 .get()
                 .extracting(UserCredential::permissions)
                 .isEqualTo(Set.of("user:read", "user:write"));
+    }
+
+    @Test
+    void doesNotReturnPermissionsFromLogicallyDeletedRole() {
+        insertTenant(1L, "tenant-a", "ACTIVE");
+        insertUser(11L, 1L, "alice", "hash-a", "ACTIVE", false);
+        insertRole(101L, 1L, "deleted-role");
+        insertPermission(1001L, "user:read");
+        jdbcTemplate.update("UPDATE iam_role SET deleted = 1 WHERE id = ?", 101L);
+        jdbcTemplate.update("INSERT INTO iam_user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)", 1L, 11L, 101L);
+        jdbcTemplate.update("INSERT INTO iam_role_permission (tenant_id, role_id, permission_id) VALUES (?, ?, ?)",
+                1L, 101L, 1001L);
+
+        assertThat(gateway.findByTenantCodeAndUsername("tenant-a", "alice"))
+                .get()
+                .extracting(UserCredential::permissions)
+                .isEqualTo(Set.of());
+    }
+
+    @Test
+    void deduplicatesPermissionGrantedThroughMultipleRoles() {
+        insertTenant(1L, "tenant-a", "ACTIVE");
+        insertUser(11L, 1L, "alice", "hash-a", "ACTIVE", false);
+        insertRole(101L, 1L, "operator");
+        insertRole(102L, 1L, "auditor");
+        insertPermission(1001L, "user:read");
+        jdbcTemplate.update("INSERT INTO iam_user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?), (?, ?, ?)",
+                1L, 11L, 101L, 1L, 11L, 102L);
+        jdbcTemplate.update("INSERT INTO iam_role_permission (tenant_id, role_id, permission_id) VALUES (?, ?, ?), (?, ?, ?)",
+                1L, 101L, 1001L, 1L, 102L, 1001L);
+
+        assertThat(gateway.findByTenantCodeAndUsername("tenant-a", "alice"))
+                .get()
+                .extracting(UserCredential::permissions)
+                .isEqualTo(Set.of("user:read"));
     }
 
     private void insertTenant(long id, String code, String status) {

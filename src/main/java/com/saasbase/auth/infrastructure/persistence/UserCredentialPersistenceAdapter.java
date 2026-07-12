@@ -4,6 +4,7 @@ import com.saasbase.auth.domain.UserCredential;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
 import org.springframework.stereotype.Repository;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 
@@ -26,6 +27,6 @@ public class UserCredentialPersistenceAdapter implements UserCredentialGateway {
         if (permissions == null || permissions.isBlank()) {
             return Set.of();
         }
-        return Set.of(permissions.split(","));
+        return Set.copyOf(Arrays.asList(permissions.split(",")));
     }
 }
