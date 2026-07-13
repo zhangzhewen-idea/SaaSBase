@@ -6,6 +6,11 @@ import com.saasbase.auth.domain.UserPrincipal;
 import com.saasbase.auth.domain.gateway.RefreshTokenStore;
 import com.saasbase.auth.domain.gateway.TokenGateway;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
+import com.saasbase.common.error.BizException;
+import com.saasbase.common.error.ErrorCode;
+import com.saasbase.tenant.domain.TenantAuthState;
+import com.saasbase.tenant.domain.TenantStatus;
+import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthApplicationServiceTest {
 
@@ -23,6 +29,16 @@ class AuthApplicationServiceTest {
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.of(
                 new UserCredential(1001L, 2001L, "alice", encoder.encode("pass123"), Set.of("tenant:user:read")));
         RefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
+        TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {
+            @Override
+            public TenantAuthState requireCurrent(Long tenantId) {
+                return new TenantAuthState(tenantId, TenantStatus.ACTIVE, 7L);
+            }
+
+            @Override
+            public void cache(TenantAuthState tenantAuthState) {
+            }
+        };
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
             public String issueAccessToken(UserPrincipal principal) {
@@ -31,10 +47,10 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
 
         var response = service.login(new LoginRequest("tenant-a", "alice", "pass123"));
 
@@ -53,7 +69,17 @@ class AuthApplicationServiceTest {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.empty();
         InMemoryRefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
-        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"]}", Long.MAX_VALUE);
+        TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {
+            @Override
+            public TenantAuthState requireCurrent(Long tenantId) {
+                return new TenantAuthState(tenantId, TenantStatus.ACTIVE, 7L);
+            }
+
+            @Override
+            public void cache(TenantAuthState tenantAuthState) {
+            }
+        };
+        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"],\"sessionVersion\":7}", Long.MAX_VALUE);
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
             public String issueAccessToken(UserPrincipal principal) {
@@ -62,16 +88,51 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
 
         var response = service.refresh(new RefreshRequest("refresh-1"));
 
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.refreshToken()).isNotEqualTo("refresh-1");
         assertThat(refreshTokenStore.exists("refresh-1")).isFalse();
+    }
+
+    @Test
+    void refresh_rejects_tenant_session_version_mismatch() {
+        PasswordEncoder encoder = new BCryptPasswordEncoder();
+        UserCredentialGateway userGateway = (tenantCode, username) -> Optional.empty();
+        InMemoryRefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
+        TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {
+            @Override
+            public TenantAuthState requireCurrent(Long tenantId) {
+                return new TenantAuthState(tenantId, TenantStatus.ACTIVE, 8L);
+            }
+
+            @Override
+            public void cache(TenantAuthState tenantAuthState) {
+            }
+        };
+        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"],\"sessionVersion\":7}", Long.MAX_VALUE);
+        TokenGateway tokenGateway = new TokenGateway() {
+            @Override
+            public String issueAccessToken(UserPrincipal principal) {
+                return "access-token";
+            }
+
+            @Override
+            public UserPrincipal parseAccessToken(String token) {
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
+            }
+        };
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
+
+        assertThatThrownBy(() -> service.refresh(new RefreshRequest("refresh-1")))
+                .isInstanceOf(BizException.class)
+                .extracting(error -> ((BizException) error).errorCode())
+                .isEqualTo(ErrorCode.AUTH_TENANT_SESSION_EXPIRED);
     }
 
     @Test
@@ -88,10 +149,20 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {
+            @Override
+            public TenantAuthState requireCurrent(Long tenantId) {
+                return new TenantAuthState(tenantId, TenantStatus.ACTIVE, 7L);
+            }
+
+            @Override
+            public void cache(TenantAuthState tenantAuthState) {
+            }
+        };
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
 
         service.logout(new LogoutRequest("refresh-2"));
 

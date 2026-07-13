@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.saasbase.tenant.infrastructure.persistence.TenantMapper">
+    <resultMap id="TenantResultMap" type="com.saasbase.tenant.infrastructure.persistence.TenantRecord">
+        <constructor>
+            <idArg name="id" column="id" javaType="java.lang.Long"/>
+            <arg name="tenantCode" column="tenant_code" javaType="string"/>
+            <arg name="tenantName" column="tenant_name" javaType="string"/>
+            <arg name="status" column="status" javaType="com.saasbase.tenant.domain.TenantStatus"/>
+            <arg name="sessionVersion" column="session_version" javaType="java.lang.Long"/>
+            <arg name="createdAt" column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg name="createdBy" column="created_by" javaType="java.lang.Long"/>
+            <arg name="updatedAt" column="updated_at" javaType="java.time.LocalDateTime"/>
+            <arg name="updatedBy" column="updated_by" javaType="java.lang.Long"/>
+            <arg name="deleted" column="deleted" javaType="java.lang.Boolean"/>
+            <arg name="version" column="version" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="columns">id, tenant_code, tenant_name, status, session_version, created_at, created_by,
+        updated_at, updated_by, deleted, version</sql>
+    <sql id="filters">
+        deleted = 0
+        <if test="tenantCode != null">AND tenant_code = #{tenantCode}</if>
+        <if test="tenantNamePattern != null">AND tenant_name LIKE #{tenantNamePattern} ESCAPE '\\'</if>
+        <if test="status != null">AND status = #{status}</if>
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tenant (tenant_code, tenant_name, status, session_version, created_at, created_by,
+                            updated_at, updated_by, deleted, version)
+        VALUES (#{tenantCode}, #{tenantName}, #{status}, #{sessionVersion}, #{createdAt}, #{createdBy},
+                #{updatedAt}, #{updatedBy}, #{deleted}, #{version})
+    </insert>
+    <select id="existsByCode" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM tenant WHERE tenant_code = #{tenantCode} AND deleted = 0)
+    </select>
+    <select id="findById" resultMap="TenantResultMap">
+        SELECT <include refid="columns"/> FROM tenant WHERE id = #{id} AND deleted = 0
+    </select>
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM tenant WHERE <include refid="filters"/>
+    </select>
+    <select id="page" resultMap="TenantResultMap">
+        SELECT <include refid="columns"/> FROM tenant WHERE <include refid="filters"/>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+    <update id="update">
+        UPDATE tenant
+        SET tenant_name = #{record.tenantName}, status = #{record.status},
+            session_version = #{record.sessionVersion}, version = version + 1,
+            updated_at = #{record.updatedAt}, updated_by = #{operatorId}
+        WHERE id = #{record.id} AND version = #{record.version} AND deleted = 0
+    </update>
+</mapper>

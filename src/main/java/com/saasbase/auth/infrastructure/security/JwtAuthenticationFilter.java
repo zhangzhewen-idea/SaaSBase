@@ -3,8 +3,13 @@ package com.saasbase.auth.infrastructure.security;
 import com.saasbase.auth.domain.UserPrincipal;
 import com.saasbase.auth.domain.gateway.TokenGateway;
 import com.saasbase.auth.domain.gateway.TokenRevocationStore;
+import com.saasbase.common.error.BizException;
+import com.saasbase.common.error.ErrorCode;
 import com.saasbase.common.tenant.TenantContext;
 import com.saasbase.common.tenant.TenantContextHolder;
+import com.saasbase.tenant.domain.TenantAuthState;
+import com.saasbase.tenant.domain.TenantStatus;
+import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,10 +31,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenGateway tokenGateway;
     private final TokenRevocationStore tokenRevocationStore;
+    private final TenantAuthStateGateway tenantAuthStateGateway;
 
-    public JwtAuthenticationFilter(TokenGateway tokenGateway, TokenRevocationStore tokenRevocationStore) {
+    public JwtAuthenticationFilter(
+            TokenGateway tokenGateway,
+            TokenRevocationStore tokenRevocationStore,
+            TenantAuthStateGateway tenantAuthStateGateway) {
         this.tokenGateway = tokenGateway;
         this.tokenRevocationStore = tokenRevocationStore;
+        this.tenantAuthStateGateway = tenantAuthStateGateway;
     }
 
     @Override
@@ -43,6 +53,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     throw new IllegalArgumentException("Token revoked");
                 }
                 UserPrincipal principal = tokenGateway.parseAccessToken(token);
+                TenantAuthState current = tenantAuthStateGateway.requireCurrent(principal.tenantId());
+                if (current.status() != TenantStatus.ACTIVE || current.sessionVersion() != principal.sessionVersion()) {
+                    throw new BizException(ErrorCode.AUTH_TENANT_SESSION_EXPIRED);
+                }
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         principal,
                         token,
@@ -52,19 +66,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 boolean platformRequest = principal.permissions().stream()
-                        .anyMatch(PLATFORM_PERMISSIONS::contains)
+                        .anyMatch(permission -> permission.startsWith("platform:tenant:"))
                         && request.getRequestURI().startsWith("/api/v1/platform/");
                 TenantContextHolder.set(new TenantContext(principal.tenantId(), principal.userId(), platformRequest));
             }
             filterChain.doFilter(request, response);
         } catch (RuntimeException exception) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"success\":false,\"code\":\"AUTH_INVALID_TOKEN\",\"message\":\"登录状态已失效\"}");
+            writeUnauthorized(response, exception);
         } finally {
             TenantContextHolder.clear();
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, RuntimeException exception) throws IOException {
+        ErrorCode errorCode = exception instanceof BizException bizException ? bizException.errorCode() : ErrorCode.AUTH_INVALID_TOKEN;
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"success\":false,\"code\":\"" + errorCode.name() + "\",\"message\":\""
+                + errorCode.message() + "\"}");
     }
 
     private String resolveBearerToken(HttpServletRequest request) {

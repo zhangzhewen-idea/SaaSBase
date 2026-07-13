@@ -15,6 +15,9 @@ import com.saasbase.auth.domain.gateway.TokenRevocationStore;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
 import com.saasbase.common.error.BizException;
 import com.saasbase.common.error.ErrorCode;
+import com.saasbase.tenant.domain.TenantAuthState;
+import com.saasbase.tenant.domain.TenantStatus;
+import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +34,7 @@ public class AuthApplicationService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenStore refreshTokenStore;
     private final TokenRevocationStore tokenRevocationStore;
+    private final TenantAuthStateGateway tenantAuthStateGateway;
     private final ObjectMapper objectMapper;
     private final AuditGateway auditGateway;
 
@@ -41,12 +45,14 @@ public class AuthApplicationService {
             PasswordEncoder passwordEncoder,
             RefreshTokenStore refreshTokenStore,
             TokenRevocationStore tokenRevocationStore,
+            TenantAuthStateGateway tenantAuthStateGateway,
             AuditGateway auditGateway) {
         this.userCredentialGateway = userCredentialGateway;
         this.tokenGateway = tokenGateway;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenStore = refreshTokenStore;
         this.tokenRevocationStore = tokenRevocationStore;
+        this.tenantAuthStateGateway = tenantAuthStateGateway;
         this.objectMapper = new ObjectMapper();
         this.auditGateway = auditGateway;
     }
@@ -55,8 +61,10 @@ public class AuthApplicationService {
             UserCredentialGateway userCredentialGateway,
             TokenGateway tokenGateway,
             PasswordEncoder passwordEncoder,
-            RefreshTokenStore refreshTokenStore) {
-        this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, (tokenId) -> false);
+            RefreshTokenStore refreshTokenStore,
+            TenantAuthStateGateway tenantAuthStateGateway) {
+        this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, (tokenId) -> false,
+                tenantAuthStateGateway, new NoopAuditGateway());
     }
 
     private AuthApplicationService(
@@ -64,8 +72,10 @@ public class AuthApplicationService {
             TokenGateway tokenGateway,
             PasswordEncoder passwordEncoder,
             RefreshTokenStore refreshTokenStore,
-            TokenRevocationStore tokenRevocationStore) {
+            TokenRevocationStore tokenRevocationStore,
+            TenantAuthStateGateway tenantAuthStateGateway) {
         this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, tokenRevocationStore,
+                tenantAuthStateGateway,
                 new NoopAuditGateway());
     }
 
@@ -79,15 +89,18 @@ public class AuthApplicationService {
             auditGateway.appendSecurityAudit(SecurityAuditEvent.loginFailure(credential.tenantId(), request.username(), null));
             throw new BizException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        TenantAuthState current = requireActiveTenant(credential.tenantId());
         auditGateway.appendSecurityAudit(SecurityAuditEvent.loginSuccess(
                 credential.tenantId(), credential.userId(), credential.username(), null));
         String accessToken = tokenGateway.issueAccessToken(new UserPrincipal(
                 credential.userId(),
                 credential.tenantId(),
                 credential.username(),
-                credential.permissions()));
+                credential.permissions(),
+                current.sessionVersion()));
         String refreshToken = UUID.randomUUID().toString();
-        refreshTokenStore.save(refreshToken, serializeRefreshValue(credential), Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
+        refreshTokenStore.save(refreshToken, serializeRefreshValue(credential, current.sessionVersion()),
+                Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
         return new LoginResponse("Bearer", accessToken, refreshToken, 900);
     }
 
@@ -97,6 +110,10 @@ public class AuthApplicationService {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
         UserPrincipal principal = parseRefreshValue(value);
+        TenantAuthState current = requireActiveTenant(principal.tenantId());
+        if (current.sessionVersion() != principal.sessionVersion()) {
+            throw new BizException(ErrorCode.AUTH_TENANT_SESSION_EXPIRED);
+        }
         String accessToken = tokenGateway.issueAccessToken(principal);
         String nextRefreshToken = UUID.randomUUID().toString();
         boolean rotated = refreshTokenStore.rotate(
@@ -132,22 +149,32 @@ public class AuthApplicationService {
             String username = String.valueOf(data.get("username"));
             Set<String> permissions = objectMapper.convertValue(data.get("permissions"), new TypeReference<>() {
             });
-            return new UserPrincipal(userId, tenantId, username, permissions);
+            long sessionVersion = Long.parseLong(String.valueOf(data.get("sessionVersion")));
+            return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion);
         } catch (Exception exception) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
     }
 
-    private String serializeRefreshValue(UserCredential credential) {
+    private String serializeRefreshValue(UserCredential credential, long sessionVersion) {
         try {
             return objectMapper.writeValueAsString(Map.of(
                     "userId", credential.userId(),
                     "tenantId", credential.tenantId(),
                     "username", credential.username(),
-                    "permissions", credential.permissions()));
+                    "permissions", credential.permissions(),
+                    "sessionVersion", sessionVersion));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize refresh session", exception);
         }
+    }
+
+    private TenantAuthState requireActiveTenant(Long tenantId) {
+        TenantAuthState current = tenantAuthStateGateway.requireCurrent(tenantId);
+        if (current.status() != TenantStatus.ACTIVE) {
+            throw new BizException(ErrorCode.TENANT_DISABLED);
+        }
+        return current;
     }
 
     private static final class NoopAuditGateway implements AuditGateway {
