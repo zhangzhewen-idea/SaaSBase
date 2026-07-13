@@ -38,6 +38,7 @@ public class IamUser {
             throw new BizException(ErrorCode.IAM_USER_STATUS_CONFLICT);
         }
         status = UserStatus.ACTIVE;
+        sessionVersion++;
     }
 
     public void resetPassword(String encodedPassword) {

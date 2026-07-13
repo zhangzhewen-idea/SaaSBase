@@ -1,6 +1,5 @@
 package com.saasbase.iam.infrastructure.redis;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saasbase.iam.domain.UserAuthState;
 import com.saasbase.iam.domain.UserStatus;
 import org.junit.jupiter.api.AfterAll;
@@ -30,7 +29,7 @@ class RedisUserSessionGatewayIntegrationTest {
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
-        gateway = new RedisUserSessionGateway(redisTemplate, new ObjectMapper());
+        gateway = new RedisUserSessionGateway(redisTemplate);
     }
 
     @AfterAll
@@ -70,7 +69,7 @@ class RedisUserSessionGatewayIntegrationTest {
 
     @Test
     void survivesRedisWriteFailureWithoutThrowing() {
-        RedisUserSessionGateway brokenGateway = new RedisUserSessionGateway(new StringRedisTemplate(), new ObjectMapper()) {
+        RedisUserSessionGateway brokenGateway = new RedisUserSessionGateway(new StringRedisTemplate()) {
             @Override
             public void put(UserAuthState state) {
                 throw new RuntimeException("redis down");

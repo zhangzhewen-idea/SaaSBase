@@ -19,13 +19,13 @@ class IamUserTest {
     }
 
     @Test
-    void enableDoesNotRestoreOldSessionVersion() {
+    void enableIncrementsSessionVersion() {
         IamUser user = disabledUser(8L);
 
         user.enable();
 
         assertThat(user.status()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.sessionVersion()).isEqualTo(8L);
+        assertThat(user.sessionVersion()).isEqualTo(9L);
     }
 
     @Test

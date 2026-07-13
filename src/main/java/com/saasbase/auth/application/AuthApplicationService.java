@@ -99,6 +99,15 @@ public class AuthApplicationService {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
         UserPrincipal principal = parseRefreshValue(value);
+        UserAuthState state = userSessionGateway.getOrLoad(principal.tenantId(), principal.userId(),
+                () -> new UserAuthState(principal.tenantId(), principal.userId(), com.saasbase.iam.domain.UserStatus.ACTIVE,
+                        principal.sessionVersion(), principal.mustChangePassword()));
+        if (state.status() == com.saasbase.iam.domain.UserStatus.DISABLED) {
+            throw new BizException(ErrorCode.AUTH_USER_DISABLED);
+        }
+        if (state.sessionVersion() != principal.sessionVersion()) {
+            throw new BizException(ErrorCode.AUTH_USER_SESSION_EXPIRED);
+        }
         String accessToken = tokenGateway.issueAccessToken(principal);
         String nextRefreshToken = UUID.randomUUID().toString();
         boolean rotated = refreshTokenStore.rotate(

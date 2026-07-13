@@ -1,6 +1,5 @@
 package com.saasbase.iam.infrastructure.redis;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saasbase.iam.domain.UserAuthState;
 import com.saasbase.iam.domain.gateway.UserSessionGateway;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,11 +13,10 @@ import java.util.function.Supplier;
 public class RedisUserSessionGateway implements UserSessionGateway {
     private static final Duration TTL = Duration.ofSeconds(5);
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
-    public RedisUserSessionGateway(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+    public RedisUserSessionGateway(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
     }
 
     @Override

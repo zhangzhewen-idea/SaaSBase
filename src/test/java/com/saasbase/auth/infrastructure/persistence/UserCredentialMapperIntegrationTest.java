@@ -196,7 +196,7 @@ class UserCredentialMapperIntegrationTest {
     }
 
     private void insertUser(long id, long tenantId, String username, String hash, String status, boolean deleted) {
-        jdbcTemplate.update("INSERT INTO iam_user (id, tenant_id, username, password_hash, display_name, status, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbcTemplate.update("INSERT INTO iam_user (id, tenant_id, username, password_hash, display_name, status, must_change_password, session_version, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
                 id, tenantId, username, hash, username, status, now(), now(), deleted);
     }
 
