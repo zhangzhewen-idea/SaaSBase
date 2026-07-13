@@ -112,6 +112,8 @@ class FlywayMigrationTest {
                         1, 'existing-tenant', '存量租户', 'ENABLED', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
                     )
                     """);
+            statement.executeUpdate("INSERT INTO iam_user (id, tenant_id, username, password_hash, display_name, status, created_at, updated_at) VALUES (41, 1, 'old', 'hash', 'Old', 'ACTIVE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
+            statement.executeUpdate("INSERT INTO iam_role (id, tenant_id, role_code, role_name, created_at, updated_at) VALUES (51, 1, 'OLD', 'Old', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
         }
 
         flyway().migrate();
@@ -123,6 +125,20 @@ class FlywayMigrationTest {
             assertThat(tenant.getLong("id")).isEqualTo(1L);
             assertThat(tenant.getLong("session_version")).isZero();
             assertThat(tenant.next()).isFalse();
+            statement.executeUpdate("INSERT INTO iam_user (tenant_id, username, password_hash, display_name, status, created_at, updated_at) VALUES (1, 'new', 'hash', 'New', 'ACTIVE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
+            statement.executeUpdate("INSERT INTO iam_role (tenant_id, role_code, role_name, created_at, updated_at) VALUES (1, 'NEW', 'New', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
+            try (var existing = statement.executeQuery("SELECT id FROM iam_user WHERE username='old'")) {
+                assertThat(existing.next()).isTrue(); assertThat(existing.getLong(1)).isEqualTo(41L);
+            }
+            try (var generated = statement.executeQuery("SELECT id FROM iam_user WHERE username='new'")) {
+                assertThat(generated.next()).isTrue(); assertThat(generated.getLong(1)).isGreaterThan(41L);
+            }
+            try (var existing = statement.executeQuery("SELECT id FROM iam_role WHERE role_code='OLD'")) {
+                assertThat(existing.next()).isTrue(); assertThat(existing.getLong(1)).isEqualTo(51L);
+            }
+            try (var generated = statement.executeQuery("SELECT id FROM iam_role WHERE role_code='NEW'")) {
+                assertThat(generated.next()).isTrue(); assertThat(generated.getLong(1)).isGreaterThan(51L);
+            }
             statement.executeUpdate("""
                     INSERT INTO tenant (tenant_code, tenant_name, status, created_at, updated_at)
                     VALUES ('new-tenant', '新租户', 'ACTIVE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))

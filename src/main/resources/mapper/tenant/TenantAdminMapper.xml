@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.saasbase.tenant.infrastructure.persistence.TenantAdminMapper">
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO iam_user (tenant_id, username, password_hash, display_name, status, created_at, created_by, updated_at, updated_by, deleted, version)
+        VALUES (#{tenantId}, #{code}, #{passwordHash}, #{name}, 'ACTIVE', #{now}, #{operatorId}, #{now}, #{operatorId}, 0, 0)
+    </insert>
+    <insert id="insertRole" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO iam_role (tenant_id, role_code, role_name, created_at, created_by, updated_at, updated_by, deleted, version)
+        VALUES (#{tenantId}, #{code}, #{name}, #{now}, #{operatorId}, #{now}, #{operatorId}, 0, 0)
+    </insert>
+    <insert id="insertUserRole">INSERT INTO iam_user_role (tenant_id,user_id,role_id) VALUES (#{tenantId},#{userId},#{roleId})</insert>
+    <select id="findTenantPermissionIds" resultType="long">SELECT id FROM iam_permission WHERE permission_code LIKE 'tenant:%'</select>
+    <select id="hasPermissionCode" resultType="boolean">SELECT EXISTS(SELECT 1 FROM iam_permission WHERE permission_code=#{code})</select>
+    <insert id="insertRolePermissions">
+        INSERT INTO iam_role_permission (tenant_id,role_id,permission_id) VALUES
+        <foreach collection="permissionIds" item="id" separator=",">(#{tenantId},#{roleId},#{id})</foreach>
+    </insert>
+</mapper>
