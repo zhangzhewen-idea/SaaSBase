@@ -31,8 +31,11 @@ class FlywayMigrationTest {
         try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())) {
             try (var columns = connection.getMetaData().getColumns(null, null, "iam_user", null)) {
                 var columnNames = new java.util.HashSet<String>();
+                var nullabilityByColumn = new java.util.HashMap<String, String>();
                 while (columns.next()) {
-                    columnNames.add(columns.getString("COLUMN_NAME"));
+                    var columnName = columns.getString("COLUMN_NAME");
+                    columnNames.add(columnName);
+                    nullabilityByColumn.put(columnName, columns.getString("IS_NULLABLE"));
                 }
                 assertThat(columnNames).contains(
                         "phone",
@@ -41,6 +44,7 @@ class FlywayMigrationTest {
                         "session_version",
                         "last_login_at"
                 );
+                assertThat(nullabilityByColumn.get("primary_department_id")).isEqualTo("YES");
             }
 
             try (var statement = connection.createStatement();

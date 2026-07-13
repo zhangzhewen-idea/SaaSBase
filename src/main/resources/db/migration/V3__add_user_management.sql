@@ -5,12 +5,7 @@ ALTER TABLE iam_user
     ADD COLUMN session_version BIGINT NOT NULL DEFAULT 0 AFTER must_change_password,
     ADD COLUMN last_login_at DATETIME(6) NULL AFTER session_version;
 
-UPDATE iam_user
-SET primary_department_id = 0
-WHERE primary_department_id IS NULL;
-
 ALTER TABLE iam_user
-    MODIFY COLUMN primary_department_id BIGINT NOT NULL DEFAULT 0,
     ADD KEY idx_iam_user_tenant_department (tenant_id, primary_department_id),
     ADD KEY idx_iam_user_tenant_phone (tenant_id, phone);
 
