@@ -21,6 +21,7 @@ import com.saasbase.iam.domain.gateway.DepartmentReferenceGateway;
 import com.saasbase.iam.domain.gateway.UserGateway;
 import com.saasbase.iam.domain.gateway.UserRoleAssignmentGateway;
 import com.saasbase.iam.domain.gateway.UserSessionGateway;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -38,7 +39,7 @@ public class UserApplicationService {
     private final AuditGateway auditGateway;
 
     public UserApplicationService(UserGateway userGateway,
-                                  DepartmentReferenceGateway departmentReferenceGateway,
+                                  @Qualifier("departmentPersistenceAdapter") DepartmentReferenceGateway departmentReferenceGateway,
                                   UserRoleAssignmentGateway userRoleAssignmentGateway,
                                   UserSessionGateway userSessionGateway,
                                   AuditGateway auditGateway) {
@@ -56,8 +57,8 @@ public class UserApplicationService {
         }
         validateDepartment(tenantId, command.primaryDepartmentId());
         command.roleIds().forEach(roleId -> userRoleAssignmentGateway.assertRoleActive(tenantId, roleId));
-        IamUser user = new IamUser(nextUserId(), tenantId, command.username(), encode(command.initialPassword()),
-                UserStatus.ACTIVE, false, 0L);
+        IamUser user = new IamUser(nextUserId(), tenantId, command.username(), command.primaryDepartmentId(),
+                encode(command.initialPassword()), UserStatus.ACTIVE, false, 0L);
         userGateway.insert(user);
         userRoleAssignmentGateway.replaceRoles(tenantId, user.id(), command.roleIds());
         appendAudit(tenantId, operatorId, "CREATE", user.id());
@@ -72,6 +73,10 @@ public class UserApplicationService {
         assertVersion(user, command.version());
         validateDepartment(tenantId, command.primaryDepartmentId());
         command.roleIds().forEach(roleId -> userRoleAssignmentGateway.assertRoleActive(tenantId, roleId));
+        user.changePrimaryDepartment(command.primaryDepartmentId());
+        if (!userGateway.update(user)) {
+            throw new BizException(ErrorCode.IAM_USER_CONCURRENT_MODIFICATION);
+        }
         userRoleAssignmentGateway.replaceRoles(tenantId, user.id(), command.roleIds());
         appendAudit(tenantId, operatorId, "UPDATE", user.id());
         publishSessionAfterCommit(user);
@@ -199,7 +204,7 @@ public class UserApplicationService {
     }
 
     private UserView toView(IamUser user, Set<Long> roleIds) {
-        return new UserView(user.id(), user.username(), user.username(), null, null, user.status(), user.sessionVersion(),
+        return new UserView(user.id(), user.username(), user.username(), null, user.primaryDepartmentId(), user.status(), user.sessionVersion(),
                 user.mustChangePassword(), roleIds);
     }
 

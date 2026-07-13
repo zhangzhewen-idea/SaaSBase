@@ -9,6 +9,7 @@ public class IamUser {
     private final Long id;
     private final Long tenantId;
     private final String username;
+    private Long primaryDepartmentId;
     private String passwordHash;
     private UserStatus status;
     private boolean mustChangePassword;
@@ -16,9 +17,15 @@ public class IamUser {
 
     public IamUser(Long id, Long tenantId, String username, String passwordHash, UserStatus status,
                    boolean mustChangePassword, long sessionVersion) {
+        this(id, tenantId, username, null, passwordHash, status, mustChangePassword, sessionVersion);
+    }
+
+    public IamUser(Long id, Long tenantId, String username, Long primaryDepartmentId, String passwordHash,
+                   UserStatus status, boolean mustChangePassword, long sessionVersion) {
         this.id = Objects.requireNonNull(id, "id");
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId");
         this.username = requireText(username, "username");
+        this.primaryDepartmentId = primaryDepartmentId;
         this.passwordHash = requireText(passwordHash, "passwordHash");
         this.status = Objects.requireNonNull(status, "status");
         this.mustChangePassword = mustChangePassword;
@@ -59,6 +66,10 @@ public class IamUser {
         return username;
     }
 
+    public Long primaryDepartmentId() {
+        return primaryDepartmentId;
+    }
+
     public String passwordHash() {
         return passwordHash;
     }
@@ -73,6 +84,10 @@ public class IamUser {
 
     public long sessionVersion() {
         return sessionVersion;
+    }
+
+    public void changePrimaryDepartment(Long primaryDepartmentId) {
+        this.primaryDepartmentId = Objects.requireNonNull(primaryDepartmentId, "primaryDepartmentId");
     }
 
     private static String requireText(String value, String name) {

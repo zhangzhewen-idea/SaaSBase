@@ -22,6 +22,7 @@ import com.saasbase.tenant.domain.Tenant;
 import com.saasbase.tenant.domain.TenantAuthState;
 import com.saasbase.tenant.domain.TenantStatus;
 import com.saasbase.tenant.domain.gateway.TenantAdminInitializer;
+import com.saasbase.tenant.domain.gateway.TenantDepartmentInitializer;
 import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
 import com.saasbase.tenant.domain.gateway.TenantGateway;
 import java.time.Clock;
@@ -38,6 +39,7 @@ class TenantApplicationServiceTest {
     void create_orders_gateway_initializer_audit_and_cache() {
         TenantGateway tenantGateway = mock(TenantGateway.class);
         TenantAdminInitializer initializer = mock(TenantAdminInitializer.class);
+        TenantDepartmentInitializer departmentInitializer = mock(TenantDepartmentInitializer.class);
         TenantAuthStateGateway authStateGateway = mock(TenantAuthStateGateway.class);
         AuditGateway auditGateway = mock(AuditGateway.class);
         when(tenantGateway.existsByCode("acme")).thenReturn(false);
@@ -46,17 +48,18 @@ class TenantApplicationServiceTest {
         when(authStateGateway.requireCurrent(11L))
                 .thenReturn(new TenantAuthState(11L, TenantStatus.ACTIVE, 2L));
         TenantApplicationService service = new TenantApplicationService(
-                tenantGateway, initializer, authStateGateway, auditGateway, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+                tenantGateway, initializer, departmentInitializer, authStateGateway, auditGateway, Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
         TenantResponse response = service.create(
                 new CreateTenantRequest("acme", "Acme", "admin", "管理员", "Secret123456"),
                 9L);
 
         assertThat(response).isEqualTo(TenantResponse.from(Tenant.reconstitute(11L, "acme", "Acme", TenantStatus.ACTIVE, 2L, 0L)));
-        var order = inOrder(tenantGateway, initializer, auditGateway, authStateGateway);
+        var order = inOrder(tenantGateway, initializer, departmentInitializer, auditGateway, authStateGateway);
         order.verify(tenantGateway).existsByCode("acme");
         order.verify(tenantGateway).insert(any(Tenant.class), eq(9L));
         order.verify(initializer).initialize(11L, "admin", "管理员", "Secret123456", 9L);
+        order.verify(departmentInitializer).initializeRootDepartment(11L, "Acme", 9L);
         order.verify(auditGateway).appendAdminOperationAudit(any(AdminOperationAuditEvent.class));
         verify(authStateGateway).cache(new TenantAuthState(11L, TenantStatus.ACTIVE, 2L));
     }
@@ -65,10 +68,11 @@ class TenantApplicationServiceTest {
     void create_rejects_duplicate_tenant_code() {
         TenantGateway tenantGateway = mock(TenantGateway.class);
         TenantAdminInitializer initializer = mock(TenantAdminInitializer.class);
+        TenantDepartmentInitializer departmentInitializer = mock(TenantDepartmentInitializer.class);
         TenantAuthStateGateway authStateGateway = mock(TenantAuthStateGateway.class);
         AuditGateway auditGateway = mock(AuditGateway.class);
         when(tenantGateway.existsByCode("acme")).thenReturn(true);
-        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, authStateGateway, auditGateway);
+        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, departmentInitializer, authStateGateway, auditGateway);
 
         assertThatThrownBy(() -> service.create(
                 new CreateTenantRequest("acme", "Acme", "admin", "管理员", "Secret123456"),
@@ -82,12 +86,13 @@ class TenantApplicationServiceTest {
     void update_enable_disable_and_current_profile_use_gateway_state() {
         TenantGateway tenantGateway = mock(TenantGateway.class);
         TenantAdminInitializer initializer = mock(TenantAdminInitializer.class);
+        TenantDepartmentInitializer departmentInitializer = mock(TenantDepartmentInitializer.class);
         TenantAuthStateGateway authStateGateway = mock(TenantAuthStateGateway.class);
         AuditGateway auditGateway = mock(AuditGateway.class);
         Tenant existing = Tenant.reconstitute(11L, "acme", "Acme", TenantStatus.ACTIVE, 2L, 5L);
         when(tenantGateway.findById(11L)).thenReturn(Optional.of(existing));
         when(tenantGateway.update(any(Tenant.class), eq(9L))).thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));
-        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, authStateGateway, auditGateway);
+        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, departmentInitializer, authStateGateway, auditGateway);
 
         TenantResponse updated = service.update(11L, new UpdateTenantRequest("After"), 9L);
         assertThat(updated.tenantName()).isEqualTo("After");
@@ -107,12 +112,13 @@ class TenantApplicationServiceTest {
     void page_maps_gateway_page_to_response() {
         TenantGateway tenantGateway = mock(TenantGateway.class);
         TenantAdminInitializer initializer = mock(TenantAdminInitializer.class);
+        TenantDepartmentInitializer departmentInitializer = mock(TenantDepartmentInitializer.class);
         TenantAuthStateGateway authStateGateway = mock(TenantAuthStateGateway.class);
         AuditGateway auditGateway = mock(AuditGateway.class);
         Tenant tenant = Tenant.reconstitute(11L, "acme", "Acme", TenantStatus.ACTIVE, 2L, 0L);
         when(tenantGateway.page(new TenantGateway.Query(null, null, TenantStatus.ACTIVE, 1, 10)))
                 .thenReturn(new TenantGateway.Page(List.of(tenant), 1, 1, 10));
-        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, authStateGateway, auditGateway);
+        TenantApplicationService service = new TenantApplicationService(tenantGateway, initializer, departmentInitializer, authStateGateway, auditGateway);
 
         PageResponse<TenantResponse> response = service.page(new TenantQuery(null, null, TenantStatus.ACTIVE, 1, 10));
 

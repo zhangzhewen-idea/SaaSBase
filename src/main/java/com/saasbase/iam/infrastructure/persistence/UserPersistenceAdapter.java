@@ -65,9 +65,9 @@ public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceG
                         INSERT INTO iam_user
                         (id, tenant_id, username, password_hash, display_name, phone, primary_department_id, status,
                          must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted)
-                        VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
+                        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
                         """,
-                user.id(), user.tenantId(), user.username(), user.passwordHash(), user.username(),
+                user.id(), user.tenantId(), user.username(), user.passwordHash(), user.username(), user.primaryDepartmentId(),
                 user.status().name(), user.mustChangePassword(), user.sessionVersion());
     }
 
@@ -76,6 +76,7 @@ public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceG
         return jdbcTemplate.update("""
                         UPDATE iam_user
                            SET password_hash = ?,
+                               primary_department_id = ?,
                                status = ?,
                                must_change_password = ?,
                                session_version = ?,
@@ -85,7 +86,7 @@ public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceG
                            AND id = ?
                            AND version = ?
                         """,
-                user.passwordHash(), user.status().name(), user.mustChangePassword(), user.sessionVersion(),
+                user.passwordHash(), user.primaryDepartmentId(), user.status().name(), user.mustChangePassword(), user.sessionVersion(),
                 user.tenantId(), user.id(), Math.max(0L, user.sessionVersion() - 1)) == 1;
     }
 
@@ -129,6 +130,7 @@ public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceG
                 record.id(),
                 record.tenantId(),
                 record.username(),
+                record.primaryDepartmentId(),
                 record.passwordHash(),
                 com.saasbase.iam.domain.UserStatus.valueOf(record.status()),
                 Boolean.TRUE.equals(record.mustChangePassword()),

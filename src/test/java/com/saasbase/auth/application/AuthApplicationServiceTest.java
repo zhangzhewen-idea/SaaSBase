@@ -27,7 +27,8 @@ class AuthApplicationServiceTest {
     void login_returns_access_and_refresh_token_when_password_matches() {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.of(
-                new UserCredential(1001L, 2001L, "alice", encoder.encode("pass123"), Set.of("tenant:user:read")));
+                new UserCredential(1001L, 2001L, "alice", encoder.encode("pass123"), Set.of("tenant:user:read"),
+                        7L, false, "ACTIVE"));
         RefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
         TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {
             @Override
@@ -47,7 +48,7 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L, false);
             }
         };
         AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
@@ -88,7 +89,7 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L, false);
             }
         };
         AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
@@ -124,7 +125,7 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L, false);
             }
         };
         AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore, tenantAuthStateGateway);
@@ -149,7 +150,7 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L);
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 7L, false);
             }
         };
         TenantAuthStateGateway tenantAuthStateGateway = new TenantAuthStateGateway() {

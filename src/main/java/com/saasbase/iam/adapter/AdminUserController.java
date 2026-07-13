@@ -4,10 +4,12 @@ import com.saasbase.common.api.ApiResponse;
 import com.saasbase.common.api.PageResponse;
 import com.saasbase.common.tenant.TenantContext;
 import com.saasbase.common.tenant.TenantContextHolder;
+import com.saasbase.iam.application.DepartmentApplicationService;
 import com.saasbase.iam.application.UserApplicationService;
 import com.saasbase.iam.application.dto.UserCommands.ChangePasswordCommand;
 import com.saasbase.iam.application.dto.UserCommands.CreateUserCommand;
 import com.saasbase.iam.application.dto.UserCommands.UpdateUserCommand;
+import com.saasbase.iam.application.dto.DepartmentCommands.TransferDepartmentCommand;
 import com.saasbase.iam.application.dto.UserView;
 import com.saasbase.iam.domain.UserPageQuery;
 import jakarta.validation.Valid;
@@ -30,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin/users")
 public class AdminUserController {
     private final UserApplicationService service;
+    private final DepartmentApplicationService departmentService;
 
-    public AdminUserController(UserApplicationService service) {
+    public AdminUserController(UserApplicationService service, DepartmentApplicationService departmentService) {
         this.service = service;
+        this.departmentService = departmentService;
     }
 
     @PostMapping
@@ -89,5 +93,13 @@ public class AdminUserController {
     public ApiResponse<UserView> resetPassword(@PathVariable long userId, @Valid @RequestBody ChangePasswordCommand command) {
         TenantContext context = TenantContextHolder.require();
         return ApiResponse.ok(service.resetPassword(context.tenantId(), context.userId(), userId, command));
+    }
+
+    @PostMapping("/{userId}/transfer-dept")
+    @PreAuthorize("hasAuthority('tenant:user:transfer-dept')")
+    public ApiResponse<Void> transferDepartment(@PathVariable long userId, @Valid @RequestBody TransferDepartmentCommand command) {
+        TenantContext context = TenantContextHolder.require();
+        departmentService.transferDepartment(context.tenantId(), context.userId(), userId, command);
+        return ApiResponse.ok(null);
     }
 }

@@ -82,7 +82,7 @@ class AdminUserControllerTest {
                                 .authorities(new SimpleGrantedAuthority("tenant:user:create")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"alice","initialPassword":"secret","displayName":"Alice","roleIds":[1]}
+                                {"username":"alice","initialPassword":"secret","displayName":"Alice","primaryDepartmentId":1,"roleIds":[1]}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.passwordHash").doesNotExist())
@@ -132,7 +132,7 @@ class AdminUserControllerTest {
                                 .authorities(new SimpleGrantedAuthority("tenant:user:update")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"userId":1,"displayName":"Alice","roleIds":[1],"version":1}
+                                {"userId":1,"displayName":"Alice","primaryDepartmentId":1,"roleIds":[1],"version":1}
                                 """))
                 .andExpect(status().isOk());
 

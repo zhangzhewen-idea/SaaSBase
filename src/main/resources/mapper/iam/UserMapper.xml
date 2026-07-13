@@ -85,13 +85,14 @@
     <insert id="insert">
         INSERT INTO iam_user (id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
                               status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted)
-        VALUES (#{user.id}, #{user.tenantId}, #{user.username}, #{user.passwordHash}, #{user.username}, NULL, NULL,
+        VALUES (#{user.id}, #{user.tenantId}, #{user.username}, #{user.passwordHash}, #{user.username}, NULL, #{user.primaryDepartmentId},
                 #{user.status.name}, #{user.mustChangePassword}, #{user.sessionVersion}, NULL, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
     </insert>
 
     <update id="update">
         UPDATE iam_user
            SET password_hash = #{user.passwordHash},
+               primary_department_id = #{user.primaryDepartmentId},
                status = #{user.status.name},
                must_change_password = #{user.mustChangePassword},
                session_version = #{user.sessionVersion},

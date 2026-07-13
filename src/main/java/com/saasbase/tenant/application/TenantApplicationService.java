@@ -12,6 +12,7 @@ import com.saasbase.tenant.application.dto.UpdateTenantRequest;
 import com.saasbase.tenant.domain.Tenant;
 import com.saasbase.tenant.domain.TenantStatus;
 import com.saasbase.tenant.domain.gateway.TenantAdminInitializer;
+import com.saasbase.tenant.domain.gateway.TenantDepartmentInitializer;
 import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
 import com.saasbase.tenant.domain.gateway.TenantGateway;
 import java.time.Clock;
@@ -29,6 +30,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class TenantApplicationService {
     private final TenantGateway tenantGateway;
     private final TenantAdminInitializer tenantAdminInitializer;
+    private final TenantDepartmentInitializer tenantDepartmentInitializer;
     private final TenantAuthStateGateway tenantAuthStateGateway;
     private final AuditGateway auditGateway;
     private final Clock clock;
@@ -37,19 +39,22 @@ public class TenantApplicationService {
     public TenantApplicationService(
             TenantGateway tenantGateway,
             TenantAdminInitializer tenantAdminInitializer,
+            TenantDepartmentInitializer tenantDepartmentInitializer,
             TenantAuthStateGateway tenantAuthStateGateway,
             AuditGateway auditGateway) {
-        this(tenantGateway, tenantAdminInitializer, tenantAuthStateGateway, auditGateway, Clock.systemUTC());
+        this(tenantGateway, tenantAdminInitializer, tenantDepartmentInitializer, tenantAuthStateGateway, auditGateway, Clock.systemUTC());
     }
 
     TenantApplicationService(
             TenantGateway tenantGateway,
             TenantAdminInitializer tenantAdminInitializer,
+            TenantDepartmentInitializer tenantDepartmentInitializer,
             TenantAuthStateGateway tenantAuthStateGateway,
             AuditGateway auditGateway,
             Clock clock) {
         this.tenantGateway = tenantGateway;
         this.tenantAdminInitializer = tenantAdminInitializer;
+        this.tenantDepartmentInitializer = tenantDepartmentInitializer;
         this.tenantAuthStateGateway = tenantAuthStateGateway;
         this.auditGateway = auditGateway;
         this.clock = clock;
@@ -69,6 +74,7 @@ public class TenantApplicationService {
                 request.adminDisplayName(),
                 request.initialPassword(),
                 operatorId);
+        tenantDepartmentInitializer.initializeRootDepartment(created.id(), request.tenantName(), operatorId);
         auditGateway.appendAdminOperationAudit(operation(created.id(), operatorId, "CREATE", "TENANT"));
         afterCommit(() -> tenantAuthStateGateway.cache(created.authState()));
         return TenantResponse.from(created);

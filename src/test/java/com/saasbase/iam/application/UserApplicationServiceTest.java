@@ -123,6 +123,6 @@ class UserApplicationServiceTest {
     }
 
     private CreateUserCommand createCommand() {
-        return new CreateUserCommand("alice", "secret", "Alice", null, null, Set.of());
+        return new CreateUserCommand("alice", "secret", "Alice", null, 101L, Set.of());
     }
 }

@@ -9,6 +9,8 @@ import com.saasbase.auth.application.dto.LoginRequest;
 import com.saasbase.auth.application.dto.LoginResponse;
 import com.saasbase.auth.domain.UserCredential;
 import com.saasbase.auth.domain.UserPrincipal;
+import com.saasbase.iam.domain.UserAuthState;
+import com.saasbase.iam.domain.gateway.UserSessionGateway;
 import com.saasbase.auth.domain.gateway.RefreshTokenStore;
 import com.saasbase.auth.domain.gateway.TokenGateway;
 import com.saasbase.auth.domain.gateway.TokenRevocationStore;
@@ -37,6 +39,7 @@ public class AuthApplicationService {
     private final TenantAuthStateGateway tenantAuthStateGateway;
     private final ObjectMapper objectMapper;
     private final AuditGateway auditGateway;
+    private final UserSessionGateway userSessionGateway;
 
     @Autowired
     public AuthApplicationService(
@@ -46,7 +49,8 @@ public class AuthApplicationService {
             RefreshTokenStore refreshTokenStore,
             TokenRevocationStore tokenRevocationStore,
             TenantAuthStateGateway tenantAuthStateGateway,
-            AuditGateway auditGateway) {
+            AuditGateway auditGateway,
+            UserSessionGateway userSessionGateway) {
         this.userCredentialGateway = userCredentialGateway;
         this.tokenGateway = tokenGateway;
         this.passwordEncoder = passwordEncoder;
@@ -55,6 +59,7 @@ public class AuthApplicationService {
         this.tenantAuthStateGateway = tenantAuthStateGateway;
         this.objectMapper = new ObjectMapper();
         this.auditGateway = auditGateway;
+        this.userSessionGateway = userSessionGateway;
     }
 
     public AuthApplicationService(
@@ -64,19 +69,7 @@ public class AuthApplicationService {
             RefreshTokenStore refreshTokenStore,
             TenantAuthStateGateway tenantAuthStateGateway) {
         this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, (tokenId) -> false,
-                tenantAuthStateGateway, new NoopAuditGateway());
-    }
-
-    private AuthApplicationService(
-            UserCredentialGateway userCredentialGateway,
-            TokenGateway tokenGateway,
-            PasswordEncoder passwordEncoder,
-            RefreshTokenStore refreshTokenStore,
-            TokenRevocationStore tokenRevocationStore,
-            TenantAuthStateGateway tenantAuthStateGateway) {
-        this(userCredentialGateway, tokenGateway, passwordEncoder, refreshTokenStore, tokenRevocationStore,
-                tenantAuthStateGateway,
-                new NoopAuditGateway());
+                tenantAuthStateGateway, new NoopAuditGateway(), new NoopUserSessionGateway());
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -90,6 +83,10 @@ public class AuthApplicationService {
             throw new BizException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
         TenantAuthState current = requireActiveTenant(credential.tenantId());
+        if ("DISABLED".equalsIgnoreCase(credential.status())) {
+            auditGateway.appendSecurityAudit(SecurityAuditEvent.loginFailure(credential.tenantId(), request.username(), null));
+            throw new BizException(ErrorCode.AUTH_USER_DISABLED);
+        }
         auditGateway.appendSecurityAudit(SecurityAuditEvent.loginSuccess(
                 credential.tenantId(), credential.userId(), credential.username(), null));
         String accessToken = tokenGateway.issueAccessToken(new UserPrincipal(
@@ -97,7 +94,8 @@ public class AuthApplicationService {
                 credential.tenantId(),
                 credential.username(),
                 credential.permissions(),
-                current.sessionVersion()));
+                credential.sessionVersion(),
+                credential.mustChangePassword()));
         String refreshToken = UUID.randomUUID().toString();
         refreshTokenStore.save(refreshToken, serializeRefreshValue(credential, current.sessionVersion()),
                 Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
@@ -113,6 +111,15 @@ public class AuthApplicationService {
         TenantAuthState current = requireActiveTenant(principal.tenantId());
         if (current.sessionVersion() != principal.sessionVersion()) {
             throw new BizException(ErrorCode.AUTH_TENANT_SESSION_EXPIRED);
+        }
+        UserAuthState state = userSessionGateway.getOrLoad(principal.tenantId(), principal.userId(),
+                () -> new UserAuthState(principal.tenantId(), principal.userId(), com.saasbase.iam.domain.UserStatus.ACTIVE,
+                        principal.sessionVersion(), principal.mustChangePassword()));
+        if (state.status() == com.saasbase.iam.domain.UserStatus.DISABLED) {
+            throw new BizException(ErrorCode.AUTH_USER_DISABLED);
+        }
+        if (state.sessionVersion() != principal.sessionVersion()) {
+            throw new BizException(ErrorCode.AUTH_USER_SESSION_EXPIRED);
         }
         String accessToken = tokenGateway.issueAccessToken(principal);
         String nextRefreshToken = UUID.randomUUID().toString();
@@ -150,7 +157,8 @@ public class AuthApplicationService {
             Set<String> permissions = objectMapper.convertValue(data.get("permissions"), new TypeReference<>() {
             });
             long sessionVersion = Long.parseLong(String.valueOf(data.get("sessionVersion")));
-            return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion);
+            boolean mustChangePassword = Boolean.parseBoolean(String.valueOf(data.get("mustChangePassword")));
+            return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion, mustChangePassword);
         } catch (Exception exception) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
@@ -163,7 +171,8 @@ public class AuthApplicationService {
                     "tenantId", credential.tenantId(),
                     "username", credential.username(),
                     "permissions", credential.permissions(),
-                    "sessionVersion", sessionVersion));
+                    "sessionVersion", sessionVersion,
+                    "mustChangePassword", credential.mustChangePassword()));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize refresh session", exception);
         }
@@ -184,6 +193,22 @@ public class AuthApplicationService {
 
         @Override
         public void appendAdminOperationAudit(com.saasbase.audit.domain.AdminOperationAuditEvent event) {
+        }
+    }
+
+    private static final class NoopUserSessionGateway implements UserSessionGateway {
+        @Override
+        public void put(UserAuthState state) {
+        }
+
+        @Override
+        public java.util.Optional<UserAuthState> get(long tenantId, long userId) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public UserAuthState getOrLoad(long tenantId, long userId, java.util.function.Supplier<UserAuthState> loader) {
+            return loader.get();
         }
     }
 }

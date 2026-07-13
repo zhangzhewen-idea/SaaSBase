@@ -17,7 +17,7 @@ public final class UserCommands {
             @NotBlank String initialPassword,
             @NotBlank String displayName,
             String phone,
-            Long primaryDepartmentId,
+            @NotNull Long primaryDepartmentId,
             @NotEmpty Set<@NotNull Long> roleIds) {
     }
 
@@ -25,7 +25,7 @@ public final class UserCommands {
             @NotNull Long userId,
             @NotBlank String displayName,
             String phone,
-            Long primaryDepartmentId,
+            @NotNull Long primaryDepartmentId,
             @NotEmpty Set<@NotNull Long> roleIds,
             @NotNull Long version) {
     }

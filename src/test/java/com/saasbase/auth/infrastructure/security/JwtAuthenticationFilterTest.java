@@ -3,6 +3,9 @@ package com.saasbase.auth.infrastructure.security;
 import com.saasbase.auth.domain.UserPrincipal;
 import com.saasbase.auth.domain.gateway.TokenGateway;
 import com.saasbase.auth.domain.gateway.TokenRevocationStore;
+import com.saasbase.iam.domain.UserAuthState;
+import com.saasbase.iam.domain.UserStatus;
+import com.saasbase.iam.domain.gateway.UserSessionGateway;
 import com.saasbase.tenant.domain.TenantAuthState;
 import com.saasbase.tenant.domain.TenantStatus;
 import com.saasbase.tenant.domain.gateway.TenantAuthStateGateway;
@@ -59,7 +62,7 @@ class JwtAuthenticationFilterTest {
     void returns_401_when_tenant_is_disabled() throws Exception {
         TokenGateway tokenGateway = mock(TokenGateway.class);
         when(tokenGateway.parseTokenId("token")).thenReturn("jti-1");
-        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("tenant:profile:read"), 3L));
+        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("tenant:profile:read"), 3L, false));
         TokenRevocationStore revocationStore = tokenId -> false;
         TestableFilter filter = new TestableFilter(tokenGateway, revocationStore, disabledTenantState(2L, 3L));
         MockHttpServletRequest request = requestWithBearer("token");
@@ -75,7 +78,7 @@ class JwtAuthenticationFilterTest {
     void returns_401_when_session_version_mismatches() throws Exception {
         TokenGateway tokenGateway = mock(TokenGateway.class);
         when(tokenGateway.parseTokenId("token")).thenReturn("jti-1");
-        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("tenant:profile:read"), 3L));
+        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("tenant:profile:read"), 3L, false));
         TokenRevocationStore revocationStore = tokenId -> false;
         TestableFilter filter = new TestableFilter(tokenGateway, revocationStore, activeTenantState(2L, 4L));
         MockHttpServletRequest request = requestWithBearer("token");
@@ -91,7 +94,7 @@ class JwtAuthenticationFilterTest {
     void sets_platform_context_only_for_platform_routes_with_platform_permissions() throws Exception {
         TokenGateway tokenGateway = mock(TokenGateway.class);
         when(tokenGateway.parseTokenId("token")).thenReturn("jti-1");
-        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("platform:tenant:read"), 3L));
+        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("platform:tenant:read"), 3L, false));
         TokenRevocationStore revocationStore = tokenId -> false;
         TestableFilter filter = new TestableFilter(tokenGateway, revocationStore, activeTenantState(2L, 3L));
         MockHttpServletRequest request = requestWithBearer("token");
@@ -109,7 +112,7 @@ class JwtAuthenticationFilterTest {
     void non_platform_routes_do_not_get_platform_context() throws Exception {
         TokenGateway tokenGateway = mock(TokenGateway.class);
         when(tokenGateway.parseTokenId("token")).thenReturn("jti-1");
-        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("platform:tenant:read"), 3L));
+        when(tokenGateway.parseAccessToken("token")).thenReturn(new UserPrincipal(1L, 2L, "admin", java.util.Set.of("platform:tenant:read"), 3L, false));
         TokenRevocationStore revocationStore = tokenId -> false;
         TestableFilter filter = new TestableFilter(tokenGateway, revocationStore, activeTenantState(2L, 3L));
         MockHttpServletRequest request = requestWithBearer("token");
@@ -133,7 +136,7 @@ class JwtAuthenticationFilterTest {
                 TokenGateway tokenGateway,
                 TokenRevocationStore revocationStore,
                 TenantAuthStateGateway tenantAuthStateGateway) {
-            super(tokenGateway, revocationStore, tenantAuthStateGateway);
+            super(tokenGateway, revocationStore, tenantAuthStateGateway, userSessionGateway());
         }
 
         private void apply(MockHttpServletRequest request, MockHttpServletResponse response, FilterChain chain)
@@ -151,6 +154,24 @@ class JwtAuthenticationFilterTest {
 
             @Override
             public void cache(TenantAuthState tenantAuthState) {
+            }
+        };
+    }
+
+    private static UserSessionGateway userSessionGateway() {
+        return new UserSessionGateway() {
+            @Override
+            public void put(UserAuthState state) {
+            }
+
+            @Override
+            public java.util.Optional<UserAuthState> get(long tenantId, long userId) {
+                return java.util.Optional.of(new UserAuthState(tenantId, userId, UserStatus.ACTIVE, 3L, false));
+            }
+
+            @Override
+            public UserAuthState getOrLoad(long tenantId, long userId, java.util.function.Supplier<UserAuthState> loader) {
+                return loader.get();
             }
         };
     }
