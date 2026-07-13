@@ -6,8 +6,13 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.Types;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,7 +32,7 @@ class FlywayMigrationTest {
         flyway().migrate();
 
         try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())) {
-            var expectedCoreTables = Set.of("tenant", "iam_user", "iam_role", "iam_permission");
+            var expectedCoreTables = Set.of("tenant", "iam_user", "iam_role", "iam_permission", "file_metadata");
             try (var tables = connection.getMetaData().getTables(null, null, null, new String[]{"TABLE"})) {
                 var actualTables = new java.util.HashSet<String>();
                 while (tables.next()) {
@@ -90,6 +95,17 @@ class FlywayMigrationTest {
                 }
                 assertThat(remainingPermissions).isEmpty();
             }
+
+            assertThat(columnExists(connection, "file_metadata", "original_filename")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "filename")).isFalse();
+            assertThat(columnMetadata(connection, "file_metadata", "extension"))
+                    .isEqualTo(new ColumnMetadata(Types.VARCHAR, DatabaseMetaData.columnNoNulls, ""));
+            assertThat(columnMetadata(connection, "file_metadata", "status"))
+                    .isEqualTo(new ColumnMetadata(Types.VARCHAR, DatabaseMetaData.columnNoNulls, "AVAILABLE"));
+            assertThat(columnExists(connection, "file_metadata", "deleted_at")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "version")).isTrue();
+            assertThat(indexColumns(connection, "file_metadata", "idx_file_metadata_tenant_type_time"))
+                    .containsExactly("tenant_id", "deleted", "content_type", "created_at");
         }
     }
 
@@ -128,16 +144,20 @@ class FlywayMigrationTest {
             statement.executeUpdate("INSERT INTO iam_user (tenant_id, username, password_hash, display_name, status, created_at, updated_at) VALUES (1, 'new', 'hash', 'New', 'ACTIVE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
             statement.executeUpdate("INSERT INTO iam_role (tenant_id, role_code, role_name, created_at, updated_at) VALUES (1, 'NEW', 'New', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
             try (var existing = statement.executeQuery("SELECT id FROM iam_user WHERE username='old'")) {
-                assertThat(existing.next()).isTrue(); assertThat(existing.getLong(1)).isEqualTo(41L);
+                assertThat(existing.next()).isTrue();
+                assertThat(existing.getLong(1)).isEqualTo(41L);
             }
             try (var generated = statement.executeQuery("SELECT id FROM iam_user WHERE username='new'")) {
-                assertThat(generated.next()).isTrue(); assertThat(generated.getLong(1)).isGreaterThan(41L);
+                assertThat(generated.next()).isTrue();
+                assertThat(generated.getLong(1)).isGreaterThan(41L);
             }
             try (var existing = statement.executeQuery("SELECT id FROM iam_role WHERE role_code='OLD'")) {
-                assertThat(existing.next()).isTrue(); assertThat(existing.getLong(1)).isEqualTo(51L);
+                assertThat(existing.next()).isTrue();
+                assertThat(existing.getLong(1)).isEqualTo(51L);
             }
             try (var generated = statement.executeQuery("SELECT id FROM iam_role WHERE role_code='NEW'")) {
-                assertThat(generated.next()).isTrue(); assertThat(generated.getLong(1)).isGreaterThan(51L);
+                assertThat(generated.next()).isTrue();
+                assertThat(generated.getLong(1)).isGreaterThan(51L);
             }
             statement.executeUpdate("""
                     INSERT INTO tenant (tenant_code, tenant_name, status, created_at, updated_at)
@@ -165,6 +185,37 @@ class FlywayMigrationTest {
                 .clean();
     }
 
+    private boolean columnExists(Connection connection, String tableName, String columnName) throws Exception {
+        try (var result = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
+            return result.next();
+        }
+    }
+
+    private ColumnMetadata columnMetadata(Connection connection, String tableName, String columnName) throws Exception {
+        try (var result = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
+            assertThat(result.next()).isTrue();
+            return new ColumnMetadata(
+                    result.getInt("DATA_TYPE"),
+                    result.getInt("NULLABLE"),
+                    result.getString("COLUMN_DEF"));
+        }
+    }
+
+    private List<String> indexColumns(Connection connection, String tableName, String indexName) throws Exception {
+        var columns = new ArrayList<String>();
+        try (var result = connection.getMetaData().getIndexInfo(null, null, tableName, false, false)) {
+            while (result.next()) {
+                if (indexName.equals(result.getString("INDEX_NAME"))) {
+                    columns.add(result.getString("COLUMN_NAME"));
+                }
+            }
+        }
+        return columns;
+    }
+
     private record Permission(long id, String name) {
+    }
+
+    private record ColumnMetadata(int dataType, int nullable, String defaultValue) {
     }
 }

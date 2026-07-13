@@ -1,11 +1,13 @@
 package com.saasbase.file.domain.gateway;
 
-import com.saasbase.file.domain.FileObject;
+import com.saasbase.file.domain.StoredObject;
 
 import java.io.InputStream;
 
 public interface FileStorageGateway {
-    FileObject store(Long tenantId, String filename, String contentType, InputStream inputStream);
+    StoredObject store(Long tenantId, InputStream inputStream);
 
     InputStream load(Long tenantId, String objectKey);
+
+    void delete(Long tenantId, String objectKey);
 }

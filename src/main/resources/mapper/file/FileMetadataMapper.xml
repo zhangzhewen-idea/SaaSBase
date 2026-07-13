@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.saasbase.file.infrastructure.persistence.FileMetadataMapper">
+    <resultMap id="FileMetadataResultMap" type="com.saasbase.file.infrastructure.persistence.FileMetadataRecord">
+        <constructor>
+            <idArg column="id" javaType="long"/>
+            <arg column="tenant_id" javaType="long"/>
+            <arg column="storage_type" javaType="string"/>
+            <arg column="object_key" javaType="string"/>
+            <arg column="original_filename" javaType="string"/>
+            <arg column="content_type" javaType="string"/>
+            <arg column="extension" javaType="string"/>
+            <arg column="size" javaType="java.lang.Long"/>
+            <arg column="status" javaType="com.saasbase.file.domain.FileStatus"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="created_by" javaType="java.lang.Long"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+            <arg column="updated_by" javaType="java.lang.Long"/>
+            <arg column="deleted" javaType="java.lang.Boolean"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
+            <arg column="deleted_by" javaType="java.lang.Long"/>
+            <arg column="version" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertUploading">
+        INSERT INTO file_metadata
+            (id, tenant_id, storage_type, object_key, original_filename, content_type, extension, size,
+             status, created_at, created_by, updated_at, updated_by, deleted, deleted_at, deleted_by, version)
+        VALUES
+            (#{metadata.id}, #{metadata.tenantId}, #{metadata.storageType}, #{metadata.objectKey},
+             #{metadata.originalFilename}, #{metadata.contentType}, #{metadata.extension}, #{metadata.size},
+             #{metadata.status}, #{metadata.createdAt}, #{metadata.createdBy}, #{metadata.updatedAt},
+             #{metadata.updatedBy}, #{metadata.deleted}, #{metadata.deletedAt}, #{metadata.deletedBy},
+             #{metadata.version})
+    </insert>
+
+    <update id="markAvailable">
+        UPDATE file_metadata
+           SET storage_type = #{storageType},
+               object_key = #{objectKey},
+               size = #{size},
+               status = 'AVAILABLE',
+               updated_at = #{updatedAt},
+               updated_by = #{updatedBy},
+               version = version + 1
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND version = #{version}
+           AND status = 'UPLOADING'
+    </update>
+
+    <update id="markDeleteFailed">
+        UPDATE file_metadata
+           SET status = 'DELETE_FAILED',
+               updated_at = #{updatedAt},
+               updated_by = #{updatedBy},
+               version = version + 1
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND version = #{version}
+           AND status = 'AVAILABLE'
+    </update>
+
+    <select id="findAvailableById" resultMap="FileMetadataResultMap">
+        SELECT *
+          FROM file_metadata
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND status = 'AVAILABLE'
+    </select>
+
+    <select id="findDeletableById" resultMap="FileMetadataResultMap">
+        SELECT *
+          FROM file_metadata
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND status IN ('AVAILABLE', 'DELETE_FAILED')
+    </select>
+
+    <sql id="SearchWhere">
+        WHERE tenant_id = #{tenantId}
+          AND deleted = 0
+        <if test="filename != null and filename != ''">
+            AND original_filename LIKE CONCAT('%', #{filename}, '%')
+        </if>
+        <if test="contentType != null and contentType != ''">
+            AND content_type = #{contentType}
+        </if>
+        <if test="uploadedFrom != null">
+            AND created_at &gt;= #{uploadedFrom}
+        </if>
+        <if test="uploadedTo != null">
+            AND created_at &lt;= #{uploadedTo}
+        </if>
+    </sql>
+
+    <select id="search" resultMap="FileMetadataResultMap">
+        SELECT *
+          FROM file_metadata
+        <include refid="SearchWhere"/>
+         ORDER BY created_at DESC, id DESC
+         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(1)
+          FROM file_metadata
+        <include refid="SearchWhere"/>
+    </select>
+
+    <update id="logicallyDelete">
+        UPDATE file_metadata
+           SET deleted = 1,
+               deleted_at = #{deletedAt},
+               deleted_by = #{deletedBy},
+               updated_at = #{deletedAt},
+               updated_by = #{deletedBy},
+               version = version + 1
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND version = #{version}
+           AND status IN ('AVAILABLE', 'DELETE_FAILED')
+    </update>
+
+    <delete id="removeUploading">
+        DELETE FROM file_metadata
+         WHERE tenant_id = #{tenantId}
+           AND id = #{id}
+           AND deleted = 0
+           AND status = 'UPLOADING'
+    </delete>
+</mapper>

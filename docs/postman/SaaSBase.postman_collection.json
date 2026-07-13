@@ -1,0 +1,107 @@
+{
+  "info": {
+    "_postman_id": "saasbase-api-v1",
+    "name": "SaaSBase API v1",
+    "description": "SaaSBase HTTP API 集合。先执行登录，再调用需要认证的接口。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "tenantCode", "value": "tenant-a" },
+    { "key": "username", "value": "alice" },
+    { "key": "password", "value": "pass123" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "登录",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "const json = pm.response.json();",
+              "if (json.success && json.data) {",
+              "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+              "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"tenantCode\": \"{{tenantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          }
+        },
+        {
+          "name": "刷新 Token",
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "const json = pm.response.json();",
+              "if (json.success && json.data) {",
+              "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+              "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+              "}"
+            ] }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseUrl}}/api/v1/auth/refresh"
+          }
+        },
+        {
+          "name": "退出登录",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseUrl}}/api/v1/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenant",
+      "item": [
+        {
+          "name": "租户管理 Ping",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/admin/tenants/ping"
+          }
+        },
+        {
+          "name": "平台租户 Ping",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/v1/platform/tenants/ping"
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "健康检查",
+          "request": { "method": "GET", "url": "{{baseUrl}}/actuator/health" }
+        },
+        {
+          "name": "OpenAPI 文档",
+          "request": { "method": "GET", "url": "{{baseUrl}}/v3/api-docs" }
+        }
+      ]
+    }
+  ]
+}

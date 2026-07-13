@@ -1,6 +1,5 @@
 # .claudeignore 示例
 .idea/             # IntelliJ IDEA 目录
-.worktrees/      # 工作树目录
 out/             # 输出目录
 target/            # 目标目录
 *.iml            # IntelliJ IDEA 项目文件
