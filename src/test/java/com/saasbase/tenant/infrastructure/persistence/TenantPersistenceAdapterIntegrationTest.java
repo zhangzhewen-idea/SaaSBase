@@ -17,6 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,8 +47,10 @@ class TenantPersistenceAdapterIntegrationTest {
     @Test
     void insertsTenantAndReturnsPersistedAggregate() {
         Tenant saved = gateway.insert(Tenant.create("acme", "Acme"), 7L);
+        Tenant another = gateway.insert(Tenant.create("globex", "Globex"), 7L);
 
         assertThat(saved.id()).isNotNull().isNotNegative();
+        assertThat(another.id()).isNotNull().isNotNegative().isNotEqualTo(saved.id());
         assertThat(saved.tenantCode()).isEqualTo("acme");
         assertThat(saved.status()).isEqualTo(TenantStatus.ACTIVE);
         assertThat(saved.sessionVersion()).isZero();
@@ -58,6 +61,16 @@ class TenantPersistenceAdapterIntegrationTest {
                 .containsEntry("updated_by", 7L).containsEntry("deleted", false)
                 .containsEntry("version", 0L).containsEntry("session_version", 0L);
         assertThat(row.get("created_at")).isEqualTo(row.get("updated_at"));
+    }
+
+    @Test
+    void rejectsIdGenerationAfterReturningMaximumLong() {
+        AtomicLong sequence = new AtomicLong(Long.MAX_VALUE - 1);
+
+        assertThat(TenantPersistenceAdapter.nextId(sequence)).isEqualTo(Long.MAX_VALUE - 1);
+        assertThatThrownBy(() -> TenantPersistenceAdapter.nextId(sequence))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Tenant id sequence exhausted");
     }
 
     @Test
@@ -126,6 +139,21 @@ class TenantPersistenceAdapterIntegrationTest {
         Tenant stale = Tenant.reconstitute(1L, "acme", "Stale", TenantStatus.ACTIVE, 99, 5);
         assertThat(gateway.update(stale, 10L)).isFalse();
         assertThat(gateway.findById(1L)).get().extracting(Tenant::tenantName).isEqualTo("After");
+    }
+
+    @Test
+    void doesNotUpdateLogicallyDeletedTenant() {
+        insert(1, "deleted", "Before", "ACTIVE", 2, 5, false, Instant.parse("2026-01-01T00:00:00Z"));
+        jdbcTemplate.update("UPDATE tenant SET deleted = 1 WHERE id = 1");
+        Tenant update = Tenant.reconstitute(1L, "deleted", "After", TenantStatus.DISABLED, 3, 5);
+
+        assertThat(gateway.update(update, 9L)).isFalse();
+        assertThat(jdbcTemplate.queryForMap("SELECT tenant_name, status, session_version, version, updated_by FROM tenant WHERE id = 1"))
+                .containsEntry("tenant_name", "Before")
+                .containsEntry("status", "ACTIVE")
+                .containsEntry("session_version", 2L)
+                .containsEntry("version", 5L)
+                .containsEntry("updated_by", null);
     }
 
     private void insert(long id, String code, String name, String status, long sessionVersion, long version,

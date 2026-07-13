@@ -19,7 +19,7 @@ public class TenantPersistenceAdapter implements TenantGateway {
 
     @Autowired
     public TenantPersistenceAdapter(TenantMapper mapper) {
-        this(mapper, () -> IDS.getAndUpdate(value -> value == Long.MAX_VALUE ? 0 : value + 1));
+        this(mapper, () -> nextId(IDS));
     }
 
     TenantPersistenceAdapter(TenantMapper mapper, LongSupplier idSupplier) {
@@ -82,6 +82,18 @@ public class TenantPersistenceAdapter implements TenantGateway {
             return Math.multiplyExact(pageNo - 1, pageSize);
         } catch (ArithmeticException ignored) {
             return Long.MAX_VALUE;
+        }
+    }
+
+    static long nextId(AtomicLong sequence) {
+        while (true) {
+            long current = sequence.get();
+            if (current == Long.MAX_VALUE) {
+                throw new IllegalStateException("Tenant id sequence exhausted");
+            }
+            if (sequence.compareAndSet(current, current + 1)) {
+                return current;
+            }
         }
     }
 }
