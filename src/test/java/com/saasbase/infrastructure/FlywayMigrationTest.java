@@ -6,6 +6,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,9 +28,37 @@ class FlywayMigrationTest {
                 .load()
                 .migrate();
 
-        try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
-             var result = connection.getMetaData().getTables(null, null, "iam_user", null)) {
-            assertThat(result.next()).isTrue();
+        try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())) {
+            assertThat(tableExists(connection, "iam_user")).isTrue();
+            assertThat(tableExists(connection, "file_metadata")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "extension")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "status")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "deleted_at")).isTrue();
+            assertThat(columnExists(connection, "file_metadata", "version")).isTrue();
+            assertThat(indexExists(connection, "file_metadata", "idx_file_metadata_tenant_type_time")).isTrue();
+        }
+    }
+
+    private boolean tableExists(Connection connection, String tableName) throws Exception {
+        try (var result = connection.getMetaData().getTables(null, null, tableName, null)) {
+            return result.next();
+        }
+    }
+
+    private boolean columnExists(Connection connection, String tableName, String columnName) throws Exception {
+        try (var result = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
+            return result.next();
+        }
+    }
+
+    private boolean indexExists(Connection connection, String tableName, String indexName) throws Exception {
+        try (var result = connection.getMetaData().getIndexInfo(null, null, tableName, false, false)) {
+            while (result.next()) {
+                if (indexName.equals(result.getString("INDEX_NAME"))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
