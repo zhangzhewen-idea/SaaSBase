@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
     AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "用户名或密码错误"),
+    AUTH_INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "登录状态已失效"),
     AUTH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "登录状态已失效"),
     AUTH_TENANT_SESSION_EXPIRED(HttpStatus.UNAUTHORIZED, "租户会话已失效"),
     TENANT_NOT_FOUND(HttpStatus.NOT_FOUND, "租户不存在"),
