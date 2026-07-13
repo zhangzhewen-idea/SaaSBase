@@ -11,8 +11,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -29,7 +27,6 @@ class TenantAdminPersistenceAdapterIntegrationTest {
     @Autowired TenantAdminInitializer initializer;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
-    @Autowired PlatformTransactionManager transactionManager;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -76,14 +73,34 @@ class TenantAdminPersistenceAdapterIntegrationTest {
     }
 
     @Test
-    void missingPermissionTemplateRollsBackWhenParticipatingInOuterTransaction() {
+    void missingPermissionTemplateRollsBackDirectInvocation() {
         jdbc.update("DELETE FROM iam_permission WHERE permission_code='tenant:profile:read'");
-        var transaction = new TransactionTemplate(transactionManager);
-        assertThatThrownBy(() -> transaction.executeWithoutResult(status ->
-                initializer.initialize(13L, "admin", "A", "Secret123!", 1L)))
+        assertThatThrownBy(() -> initializer.initialize(13L, "admin", "A", "Secret123!", 1L))
                 .isInstanceOfSatisfying(BizException.class,
                         error -> assertThat(error.errorCode()).isEqualTo(ErrorCode.IAM_PERMISSION_TEMPLATE_MISSING));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_user WHERE tenant_id=13", Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_role WHERE tenant_id=13", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_user_role WHERE tenant_id=13", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_role_permission WHERE tenant_id=13", Long.class)).isZero();
+    }
+
+    @Test
+    void existingTenantAdminRoleRollsBackNewUserAndKeepsExistingRole() {
+        jdbc.update("""
+                INSERT INTO iam_role (tenant_id, role_code, role_name, created_at, updated_at, deleted, version)
+                VALUES (14, 'TENANT_ADMIN', '预置租户管理员', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0, 0)
+                """);
+
+        assertThatThrownBy(() -> initializer.initialize(14L, "admin", "A", "Secret123!", 1L))
+                .satisfies(error -> {
+                    if (error instanceof BizException bizException) {
+                        assertThat(bizException.errorCode()).isNotEqualTo(ErrorCode.IAM_USERNAME_CONFLICT);
+                    }
+                });
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_user WHERE tenant_id=14", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_role WHERE tenant_id=14", Long.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT role_name FROM iam_role WHERE tenant_id=14", String.class))
+                .isEqualTo("预置租户管理员");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM iam_user_role WHERE tenant_id=14", Long.class)).isZero();
     }
 }

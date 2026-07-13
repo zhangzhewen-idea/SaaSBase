@@ -7,6 +7,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -29,6 +30,7 @@ public class TenantAdminPersistenceAdapter implements TenantAdminInitializer {
     }
 
     @Override
+    @Transactional
     public void initialize(Long tenantId, String username, String displayName, String rawPassword, Long operatorId) {
         requirePositive(tenantId, "tenantId");
         requirePositive(operatorId, "operatorId");
