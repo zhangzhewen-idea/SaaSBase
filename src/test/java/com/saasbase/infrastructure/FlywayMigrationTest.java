@@ -46,6 +46,24 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "iam_role", "data_scope")).isTrue();
             assertThat(columnExists(connection, "iam_user", "session_version")).isTrue();
 
+            try (var statement = connection.createStatement()) {
+                statement.executeUpdate("""
+                        INSERT INTO iam_role (id, tenant_id, role_code, role_name, created_at, updated_at)
+                        VALUES (90002, 1, 'CUSTOM_ROLE', 'Custom Role', NOW(6), NOW(6))
+                        """);
+            }
+
+            try (var statement = connection.prepareStatement(
+                    "SELECT role_code, role_type FROM iam_role WHERE id IN (40001, 90002) ORDER BY id");
+                 var result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("role_code")).isEqualTo("TENANT_ADMIN");
+                assertThat(result.getString("role_type")).isEqualTo("BUILT_IN");
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("role_code")).isEqualTo("CUSTOM_ROLE");
+                assertThat(result.getString("role_type")).isEqualTo("CUSTOM");
+            }
+
             try (var statement = connection.prepareStatement(
                     "SELECT COUNT(*) FROM iam_permission WHERE permission_code LIKE 'iam:%'");
                  var result = statement.executeQuery()) {
