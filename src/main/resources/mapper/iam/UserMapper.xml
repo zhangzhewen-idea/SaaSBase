@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.saasbase.iam.infrastructure.persistence.UserMapper">
+    <resultMap id="UserRecordMap" type="com.saasbase.iam.infrastructure.persistence.UserRecord">
+        <constructor>
+            <idArg name="id" column="id" javaType="long"/>
+            <arg name="tenantId" column="tenant_id" javaType="long"/>
+            <arg name="username" column="username" javaType="string"/>
+            <arg name="passwordHash" column="password_hash" javaType="string"/>
+            <arg name="displayName" column="display_name" javaType="string"/>
+            <arg name="phone" column="phone" javaType="string"/>
+            <arg name="primaryDepartmentId" column="primary_department_id" javaType="long"/>
+            <arg name="status" column="status" javaType="string"/>
+            <arg name="mustChangePassword" column="must_change_password" javaType="boolean"/>
+            <arg name="sessionVersion" column="session_version" javaType="long"/>
+            <arg name="lastLoginAt" column="last_login_at" javaType="java.time.LocalDateTime"/>
+            <arg name="version" column="version" javaType="long"/>
+            <arg name="createdAt" column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg name="updatedAt" column="updated_at" javaType="java.time.LocalDateTime"/>
+            <arg name="deleted" column="deleted" javaType="boolean"/>
+        </constructor>
+    </resultMap>
+
+    <select id="existsByUsername" resultType="boolean">
+        SELECT COUNT(1) > 0
+          FROM iam_user
+         WHERE tenant_id = #{tenantId}
+           AND username = #{username}
+           AND deleted = 0
+    </select>
+
+    <select id="findById" resultMap="UserRecordMap">
+        SELECT id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
+               status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted
+          FROM iam_user
+         WHERE tenant_id = #{tenantId}
+           AND id = #{userId}
+           AND deleted = 0
+    </select>
+
+    <select id="listPage" resultMap="UserRecordMap">
+        <bind name="offset" value="(query.page - 1) * query.size"/>
+        SELECT id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
+               status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted
+          FROM iam_user
+         WHERE tenant_id = #{tenantId}
+           AND deleted = 0
+        <if test="query.username != null and query.username != ''">
+           AND username = #{query.username}
+        </if>
+        <if test="query.departmentId != null">
+           AND primary_department_id = #{query.departmentId}
+        </if>
+        <if test="query.status != null">
+           AND status = #{query.status.name()}
+        </if>
+        <if test="query.phone != null and query.phone != ''">
+           AND phone = #{query.phone}
+        </if>
+         ORDER BY created_at DESC, id DESC
+         LIMIT #{query.size} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(1)
+          FROM iam_user
+         WHERE tenant_id = #{tenantId}
+           AND deleted = 0
+        <if test="query.username != null and query.username != ''">
+           AND username = #{query.username}
+        </if>
+        <if test="query.departmentId != null">
+           AND primary_department_id = #{query.departmentId}
+        </if>
+        <if test="query.status != null">
+           AND status = #{query.status.name()}
+        </if>
+        <if test="query.phone != null and query.phone != ''">
+           AND phone = #{query.phone}
+        </if>
+    </select>
+
+    <insert id="insert">
+        INSERT INTO iam_user (id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
+                              status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted)
+        VALUES (#{user.id}, #{user.tenantId}, #{user.username}, #{user.passwordHash}, #{user.username}, NULL, NULL,
+                #{user.status.name}, #{user.mustChangePassword}, #{user.sessionVersion}, NULL, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
+    </insert>
+
+    <update id="update">
+        UPDATE iam_user
+           SET password_hash = #{user.passwordHash},
+               status = #{user.status.name},
+               must_change_password = #{user.mustChangePassword},
+               session_version = #{user.sessionVersion},
+               version = version + 1,
+               updated_at = CURRENT_TIMESTAMP(6)
+         WHERE tenant_id = #{user.tenantId}
+           AND id = #{user.id}
+           AND version = #{user.sessionVersion}
+    </update>
+
+    <select id="findActiveDepartmentId" resultType="long">
+        SELECT id
+          FROM iam_dept
+         WHERE tenant_id = #{tenantId}
+           AND id = #{departmentId}
+           AND deleted = 0
+           AND status = 'ACTIVE'
+    </select>
+
+    <select id="findActiveRoleId" resultType="long">
+        SELECT id
+          FROM iam_role
+         WHERE tenant_id = #{tenantId}
+           AND id = #{roleId}
+           AND deleted = 0
+           AND status = 'ACTIVE'
+    </select>
+
+    <select id="countActiveAdministratorsExcludingUser" resultType="long">
+        SELECT COUNT(DISTINCT u.id)
+          FROM iam_user u
+          JOIN iam_user_role ur ON ur.tenant_id = u.tenant_id AND ur.user_id = u.id
+          JOIN iam_role r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
+         WHERE u.tenant_id = #{tenantId}
+           AND u.deleted = 0
+           AND u.status = 'ACTIVE'
+           AND r.role_code = 'TENANT_ADMIN'
+           AND r.deleted = 0
+           AND r.status = 'ACTIVE'
+           AND u.id != #{userId}
+    </select>
+
+    <select id="lockTenantAdminRole" resultType="long">
+        SELECT id
+          FROM iam_role
+         WHERE tenant_id = #{tenantId}
+           AND role_code = 'TENANT_ADMIN'
+         FOR UPDATE
+    </select>
+
+    <delete id="deleteRoles">
+        DELETE FROM iam_user_role
+         WHERE tenant_id = #{tenantId}
+           AND user_id = #{userId}
+    </delete>
+
+    <insert id="insertRoles">
+        INSERT INTO iam_user_role (tenant_id, user_id, role_id)
+        VALUES
+        <foreach collection="roleIds" item="roleId" separator=",">
+            (#{tenantId}, #{userId}, #{roleId})
+        </foreach>
+    </insert>
+
+    <select id="findRoleIds" resultType="long">
+        SELECT role_id
+          FROM iam_user_role
+         WHERE tenant_id = #{tenantId}
+           AND user_id = #{userId}
+         ORDER BY role_id
+    </select>
+</mapper>
