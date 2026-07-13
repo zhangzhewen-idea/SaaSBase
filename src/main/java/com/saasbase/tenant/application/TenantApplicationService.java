@@ -119,6 +119,11 @@ public class TenantApplicationService {
         return TenantResponse.from(requireTenant(tenantId));
     }
 
+    @Transactional(readOnly = true)
+    public TenantResponse get(Long tenantId) {
+        return TenantResponse.from(requireTenant(tenantId));
+    }
+
     private Tenant requireTenant(Long tenantId) {
         return tenantGateway.findById(tenantId)
                 .orElseThrow(() -> new BizException(ErrorCode.TENANT_NOT_FOUND));
