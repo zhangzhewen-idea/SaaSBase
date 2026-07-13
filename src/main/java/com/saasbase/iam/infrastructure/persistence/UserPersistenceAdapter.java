@@ -3,7 +3,6 @@ package com.saasbase.iam.infrastructure.persistence;
 import com.saasbase.common.api.PageResponse;
 import com.saasbase.iam.domain.IamUser;
 import com.saasbase.iam.domain.UserPageQuery;
-import com.saasbase.iam.domain.gateway.DepartmentReferenceGateway;
 import com.saasbase.iam.domain.gateway.UserGateway;
 import com.saasbase.iam.domain.gateway.UserRoleAssignmentGateway;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,7 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @Repository
-public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceGateway, UserRoleAssignmentGateway {
+public class UserPersistenceAdapter implements UserGateway, UserRoleAssignmentGateway {
     private final UserMapper mapper;
     private final JdbcTemplate jdbcTemplate;
 
@@ -90,7 +89,6 @@ public class UserPersistenceAdapter implements UserGateway, DepartmentReferenceG
                 user.tenantId(), user.id(), Math.max(0L, user.sessionVersion() - 1)) == 1;
     }
 
-    @Override
     public void assertDepartmentActive(long tenantId, long departmentId) {
         if (mapper.findActiveDepartmentId(tenantId, departmentId).isEmpty()) {
             throw new IllegalArgumentException("department not active");

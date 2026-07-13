@@ -4,7 +4,9 @@ import com.saasbase.common.api.PageResponse;
 import com.saasbase.common.error.GlobalExceptionHandler;
 import com.saasbase.common.tenant.TenantContext;
 import com.saasbase.common.tenant.TenantContextHolder;
+import com.saasbase.iam.application.DepartmentApplicationService;
 import com.saasbase.iam.application.UserApplicationService;
+import com.saasbase.iam.application.dto.DepartmentCommands.TransferDepartmentCommand;
 import com.saasbase.iam.application.dto.UserCommands.ChangePasswordCommand;
 import com.saasbase.iam.application.dto.UserCommands.CreateUserCommand;
 import com.saasbase.iam.application.dto.UserCommands.UpdateUserCommand;
@@ -41,13 +43,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class AdminUserControllerTest {
     private final UserApplicationService service = mock(UserApplicationService.class);
+    private final DepartmentApplicationService departmentService = mock(DepartmentApplicationService.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        mockMvc = MockMvcBuilders.standaloneSetup(new AdminUserController(service))
+        mockMvc = MockMvcBuilders.standaloneSetup(new AdminUserController(service, departmentService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -71,6 +74,7 @@ class AdminUserControllerTest {
         assertPreAuthorize("enable", "tenant:user:enable");
         assertPreAuthorize("disable", "tenant:user:disable");
         assertPreAuthorize("resetPassword", "tenant:user:reset-password");
+        assertPreAuthorize("transferDepartment", "tenant:user:transfer-dept");
     }
 
     @Test
@@ -157,6 +161,15 @@ class AdminUserControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.initialPassword").doesNotExist());
+
+        mockMvc.perform(post("/api/v1/admin/users/1/transfer-dept")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("op")
+                                .authorities(new SimpleGrantedAuthority("tenant:user:transfer-dept")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"departmentId":2,"version":1}
+                                """))
+                .andExpect(status().isOk());
     }
 
     private void assertPreAuthorize(String methodName, String expectedAuthority) throws Exception {
@@ -165,7 +178,8 @@ class AdminUserControllerTest {
                         methodName.equals("page") ? new Class[]{int.class, int.class, String.class, Long.class, UserStatus.class, String.class} :
                                 methodName.equals("get") ? new Class[]{long.class} :
                                         methodName.equals("update") ? new Class[]{long.class, UpdateUserCommand.class} :
-                                                methodName.equals("enable") || methodName.equals("disable") ? new Class[]{long.class, long.class} :
+                        methodName.equals("enable") || methodName.equals("disable") ? new Class[]{long.class, long.class} :
+                                                        methodName.equals("transferDepartment") ? new Class[]{long.class, TransferDepartmentCommand.class} :
                                                         new Class[]{long.class, ChangePasswordCommand.class});
         PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
         assertThat(annotation).isNotNull();
