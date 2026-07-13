@@ -14,6 +14,8 @@ import com.saasbase.iam.domain.gateway.UserSessionGateway;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Optional;
 import java.util.Set;
@@ -53,8 +55,18 @@ class UserApplicationServiceTest {
         when(userRoleAssignmentGateway.countActiveAdministratorsExcludingUser(1L, 12L)).thenReturn(1L);
         doThrow(new DataAccessResourceFailureException("down")).when(userSessionGateway).put(any());
 
-        assertThat(service.disable(1L, 99L, 12L, 3L).status()).isEqualTo(UserStatus.DISABLED);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThat(service.disable(1L, 99L, 12L, 3L).status()).isEqualTo(UserStatus.DISABLED);
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+            TransactionSynchronization synchronization = TransactionSynchronizationManager.getSynchronizations().get(0);
+            synchronization.afterCommit();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
         verify(auditGateway).appendAdminOperationAudit(any());
+        verify(userSessionGateway).put(any());
     }
 
     @Test
@@ -65,8 +77,12 @@ class UserApplicationServiceTest {
 
         service.resetPassword(1L, 99L, 12L, new ChangePasswordCommand(12L, "new-pass", 3L));
 
-        verify(auditGateway).appendSecurityAudit(any());
+        ArgumentCaptor<com.saasbase.audit.domain.SecurityAuditEvent> captor = ArgumentCaptor.forClass(com.saasbase.audit.domain.SecurityAuditEvent.class);
+        verify(auditGateway).appendSecurityAudit(captor.capture());
+        assertThat(captor.getValue().username()).isEqualTo("alice");
         verify(auditGateway).appendAdminOperationAudit(any());
+        verify(userGateway).update(user);
+        assertThat(user.passwordHash()).isEqualTo("{noop}new-pass");
     }
 
     @Test
@@ -74,9 +90,36 @@ class UserApplicationServiceTest {
         when(userGateway.existsByUsername(1L, "alice")).thenReturn(false);
         when(userRoleAssignmentGateway.countActiveAdministratorsExcludingUser(anyLong(), anyLong())).thenReturn(1L);
 
-        service.create(1L, 99L, createCommand());
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.create(1L, 99L, createCommand());
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+            TransactionSynchronizationManager.getSynchronizations().get(0).afterCommit();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
 
-        verify(userSessionGateway, timeout(1000)).put(any());
+        verify(userSessionGateway).put(any());
+        verify(auditGateway).appendAdminOperationAudit(any());
+    }
+
+    @Test
+    void disableRejectsStaleVersion() {
+        IamUser user = new IamUser(12L, 1L, "alice", "hash", UserStatus.ACTIVE, false, 3L);
+        when(userGateway.findById(1L, 12L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.disable(1L, 99L, 12L, 2L))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void disableRejectsLastAdmin() {
+        IamUser user = new IamUser(12L, 1L, "alice", "hash", UserStatus.ACTIVE, false, 3L);
+        when(userGateway.findById(1L, 12L)).thenReturn(Optional.of(user));
+        when(userRoleAssignmentGateway.countActiveAdministratorsExcludingUser(1L, 12L)).thenReturn(0L);
+
+        assertThatThrownBy(() -> service.disable(1L, 99L, 12L, 3L))
+                .isInstanceOf(BizException.class);
     }
 
     private CreateUserCommand createCommand() {

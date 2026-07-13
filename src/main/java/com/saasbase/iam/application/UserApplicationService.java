@@ -14,6 +14,8 @@ import com.saasbase.iam.application.dto.UserCommands.UpdateUserCommand;
 import com.saasbase.iam.application.dto.UserView;
 import com.saasbase.iam.domain.IamUser;
 import com.saasbase.iam.domain.UserAuthState;
+import com.saasbase.common.api.PageResponse;
+import com.saasbase.iam.domain.UserPageQuery;
 import com.saasbase.iam.domain.UserStatus;
 import com.saasbase.iam.domain.gateway.DepartmentReferenceGateway;
 import com.saasbase.iam.domain.gateway.UserGateway;
@@ -67,6 +69,7 @@ public class UserApplicationService {
     public UserView update(long tenantId, long operatorId, UpdateUserCommand command) {
         IamUser user = userGateway.findById(tenantId, command.userId())
                 .orElseThrow(() -> new BizException(ErrorCode.IAM_USER_NOT_FOUND));
+        assertVersion(user, command.version());
         validateDepartment(tenantId, command.primaryDepartmentId());
         command.roleIds().forEach(roleId -> userRoleAssignmentGateway.assertRoleActive(tenantId, roleId));
         userRoleAssignmentGateway.replaceRoles(tenantId, user.id(), command.roleIds());
@@ -75,10 +78,27 @@ public class UserApplicationService {
         return toView(user, command.roleIds());
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<UserView> page(long tenantId, UserPageQuery query) {
+        PageResponse<IamUser> page = userGateway.page(tenantId, query);
+        return new PageResponse<>(
+                page.items().stream().map(user -> toView(user, userRoleAssignmentGateway.findRoleIds(tenantId, user.id()))).toList(),
+                page.total(),
+                page.pageNo(),
+                page.pageSize());
+    }
+
+    @Transactional(readOnly = true)
+    public UserView get(long tenantId, long userId) {
+        IamUser user = loadUser(tenantId, userId);
+        return toView(user, userRoleAssignmentGateway.findRoleIds(tenantId, user.id()));
+    }
+
     @Transactional
     public UserView disable(long tenantId, long operatorId, long targetUserId, long version) {
         assertNotSelf(operatorId, targetUserId, ErrorCode.IAM_SELF_OPERATION_FORBIDDEN);
         IamUser user = loadUser(tenantId, targetUserId);
+        assertVersion(user, version);
         if (user.status() != UserStatus.ACTIVE) {
             throw new BizException(ErrorCode.IAM_USER_STATUS_CONFLICT);
         }
@@ -95,6 +115,7 @@ public class UserApplicationService {
     @Transactional
     public UserView enable(long tenantId, long operatorId, long targetUserId, long version) {
         IamUser user = loadUser(tenantId, targetUserId);
+        assertVersion(user, version);
         user.enable();
         if (!userGateway.update(user)) {
             throw new BizException(ErrorCode.IAM_USER_CONCURRENT_MODIFICATION);
@@ -108,6 +129,7 @@ public class UserApplicationService {
     public UserView resetPassword(long tenantId, long operatorId, long targetUserId, ChangePasswordCommand command) {
         assertNotSelf(operatorId, targetUserId, ErrorCode.IAM_SELF_OPERATION_FORBIDDEN);
         IamUser user = loadUser(tenantId, targetUserId);
+        assertVersion(user, command.version());
         user.resetPassword(encode(command.newPassword()));
         if (!userGateway.update(user)) {
             throw new BizException(ErrorCode.IAM_USER_CONCURRENT_MODIFICATION);
@@ -159,6 +181,12 @@ public class UserApplicationService {
     private void assertNotSelf(long operatorId, long targetUserId, ErrorCode errorCode) {
         if (operatorId == targetUserId) {
             throw new BizException(errorCode);
+        }
+    }
+
+    private void assertVersion(IamUser user, long expectedVersion) {
+        if (user.sessionVersion() != expectedVersion) {
+            throw new BizException(ErrorCode.IAM_USER_CONCURRENT_MODIFICATION);
         }
     }
 
