@@ -2,8 +2,10 @@ package com.saasbase.file.application;
 
 import com.saasbase.common.error.BizException;
 import com.saasbase.common.error.ErrorCode;
+import com.saasbase.common.api.PageResponse;
 import com.saasbase.common.tenant.TenantContextHolder;
 import com.saasbase.file.domain.FileMetadata;
+import com.saasbase.file.domain.FileQuery;
 import com.saasbase.file.domain.gateway.FileMetadataGateway;
 import com.saasbase.file.domain.gateway.FileStorageGateway;
 import org.springframework.stereotype.Service;
@@ -66,6 +68,26 @@ public class FileApplicationService {
                 throw bizException;
             }
             throw new BizException(ErrorCode.FILE_STORAGE_FAILED);
+        }
+    }
+
+    public FileMetadata get(Long fileId) {
+        Long tenantId = TenantContextHolder.require().tenantId();
+        return metadataGateway.findAvailableById(fileId)
+                .filter(metadata -> tenantId.equals(metadata.tenantId()))
+                .orElseThrow(() -> new BizException(ErrorCode.FILE_NOT_FOUND));
+    }
+
+    public PageResponse<FileMetadata> search(FileQuery query) {
+        return metadataGateway.search(query);
+    }
+
+    public InputStream openContent(Long fileId) {
+        FileMetadata metadata = get(fileId);
+        try {
+            return storageGateway.load(metadata.tenantId(), metadata.objectKey());
+        } catch (RuntimeException ex) {
+            throw new BizException(ErrorCode.FILE_READ_FAILED);
         }
     }
 
