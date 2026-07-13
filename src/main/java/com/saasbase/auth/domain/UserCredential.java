@@ -7,5 +7,8 @@ public record UserCredential(
         Long tenantId,
         String username,
         String passwordHash,
-        Set<String> permissions) {
+        Set<String> permissions,
+        long sessionVersion,
+        boolean mustChangePassword,
+        String status) {
 }

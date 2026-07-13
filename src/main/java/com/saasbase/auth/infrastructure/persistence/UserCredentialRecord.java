@@ -5,5 +5,8 @@ public record UserCredentialRecord(
         Long tenantId,
         String username,
         String passwordHash,
-        String permissions) {
+        String permissions,
+        Long sessionVersion,
+        Boolean mustChangePassword,
+        String status) {
 }

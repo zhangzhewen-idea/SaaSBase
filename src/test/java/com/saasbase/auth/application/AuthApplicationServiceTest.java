@@ -3,9 +3,11 @@ package com.saasbase.auth.application;
 import com.saasbase.auth.application.dto.LoginRequest;
 import com.saasbase.auth.domain.UserCredential;
 import com.saasbase.auth.domain.UserPrincipal;
+import com.saasbase.audit.domain.gateway.AuditGateway;
 import com.saasbase.auth.domain.gateway.RefreshTokenStore;
 import com.saasbase.auth.domain.gateway.TokenGateway;
 import com.saasbase.auth.domain.gateway.UserCredentialGateway;
+import com.saasbase.iam.domain.gateway.UserSessionGateway;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class AuthApplicationServiceTest {
 
@@ -21,7 +24,7 @@ class AuthApplicationServiceTest {
     void login_returns_access_and_refresh_token_when_password_matches() {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.of(
-                new UserCredential(1001L, 2001L, "alice", encoder.encode("pass123"), Set.of("tenant:user:read")));
+                new UserCredential(1001L, 2001L, "alice", encoder.encode("pass123"), Set.of("tenant:user:read"), 3L, false, "ACTIVE"));
         RefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
@@ -31,10 +34,26 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 3L, false);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        AuditGateway auditGateway = mock(AuditGateway.class);
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore,
+                tokenId -> false, auditGateway, new UserSessionGateway() {
+                    @Override
+                    public void put(com.saasbase.iam.domain.UserAuthState state) {
+                    }
+
+                    @Override
+                    public java.util.Optional<com.saasbase.iam.domain.UserAuthState> get(long tenantId, long userId) {
+                        return java.util.Optional.empty();
+                    }
+
+                    @Override
+                    public com.saasbase.iam.domain.UserAuthState getOrLoad(long tenantId, long userId, java.util.function.Supplier<com.saasbase.iam.domain.UserAuthState> loader) {
+                        return loader.get();
+                    }
+                });
 
         var response = service.login(new LoginRequest("tenant-a", "alice", "pass123"));
 
@@ -53,7 +72,7 @@ class AuthApplicationServiceTest {
         PasswordEncoder encoder = new BCryptPasswordEncoder();
         UserCredentialGateway userGateway = (tenantCode, username) -> Optional.empty();
         InMemoryRefreshTokenStore refreshTokenStore = new InMemoryRefreshTokenStore();
-        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"]}", Long.MAX_VALUE);
+        refreshTokenStore.save("refresh-1", "{\"userId\":1001,\"tenantId\":2001,\"username\":\"alice\",\"permissions\":[\"tenant:user:read\"],\"sessionVersion\":3,\"mustChangePassword\":false}", Long.MAX_VALUE);
         TokenGateway tokenGateway = new TokenGateway() {
             @Override
             public String issueAccessToken(UserPrincipal principal) {
@@ -62,10 +81,26 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 3L, false);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        AuditGateway auditGateway = mock(AuditGateway.class);
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore,
+                tokenId -> false, auditGateway, new UserSessionGateway() {
+                    @Override
+                    public void put(com.saasbase.iam.domain.UserAuthState state) {
+                    }
+
+                    @Override
+                    public java.util.Optional<com.saasbase.iam.domain.UserAuthState> get(long tenantId, long userId) {
+                        return java.util.Optional.empty();
+                    }
+
+                    @Override
+                    public com.saasbase.iam.domain.UserAuthState getOrLoad(long tenantId, long userId, java.util.function.Supplier<com.saasbase.iam.domain.UserAuthState> loader) {
+                        return loader.get();
+                    }
+                });
 
         var response = service.refresh(new RefreshRequest("refresh-1"));
 
@@ -88,10 +123,26 @@ class AuthApplicationServiceTest {
 
             @Override
             public UserPrincipal parseAccessToken(String token) {
-                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"));
+                return new UserPrincipal(1001L, 2001L, "alice", Set.of("tenant:user:read"), 3L, false);
             }
         };
-        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore);
+        AuditGateway auditGateway = mock(AuditGateway.class);
+        AuthApplicationService service = new AuthApplicationService(userGateway, tokenGateway, encoder, refreshTokenStore,
+                tokenId -> false, auditGateway, new UserSessionGateway() {
+                    @Override
+                    public void put(com.saasbase.iam.domain.UserAuthState state) {
+                    }
+
+                    @Override
+                    public java.util.Optional<com.saasbase.iam.domain.UserAuthState> get(long tenantId, long userId) {
+                        return java.util.Optional.empty();
+                    }
+
+                    @Override
+                    public com.saasbase.iam.domain.UserAuthState getOrLoad(long tenantId, long userId, java.util.function.Supplier<com.saasbase.iam.domain.UserAuthState> loader) {
+                        return loader.get();
+                    }
+                });
 
         service.logout(new LogoutRequest("refresh-2"));
 
