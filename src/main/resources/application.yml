@@ -3,6 +3,10 @@ spring:
     name: saasbase
   profiles:
     default: local
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
 server:
   port: 8080
 management:
@@ -22,3 +26,19 @@ springdoc:
 saasbase:
   file:
     root-path: ./data/files
+    max-size: 20MB
+    allowed-extensions: [pdf, png, jpg, jpeg, docx, xlsx]
+    allowed-content-types:
+      - "application/pdf"
+      - "image/png"
+      - "image/jpeg"
+      - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    inline-content-types: ["application/pdf", "image/png", "image/jpeg"]
+    content-type-by-extension:
+      pdf: ["application/pdf"]
+      png: ["image/png"]
+      jpg: ["image/jpeg"]
+      jpeg: ["image/jpeg"]
+      docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+      xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]
