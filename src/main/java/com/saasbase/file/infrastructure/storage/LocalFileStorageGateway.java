@@ -1,6 +1,6 @@
 package com.saasbase.file.infrastructure.storage;
 
-import com.saasbase.file.domain.FileObject;
+import com.saasbase.file.domain.StoredObject;
 import com.saasbase.file.domain.gateway.FileStorageGateway;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +19,7 @@ public class LocalFileStorageGateway implements FileStorageGateway {
     }
 
     @Override
-    public FileObject store(Long tenantId, String filename, String contentType, InputStream inputStream) {
+    public StoredObject store(Long tenantId, InputStream inputStream) {
         try {
             Files.createDirectories(rootPath);
             String objectKey = tenantId + "/" + UUID.randomUUID();
@@ -29,7 +29,7 @@ public class LocalFileStorageGateway implements FileStorageGateway {
             }
             Files.createDirectories(target.getParent());
             long size = Files.copy(inputStream, target);
-            return new FileObject(tenantId, "local", objectKey, filename, contentType, size);
+            return new StoredObject("local", objectKey, size);
         } catch (IOException ex) {
             throw new IllegalStateException("failed to store file", ex);
         }
@@ -46,5 +46,10 @@ public class LocalFileStorageGateway implements FileStorageGateway {
         } catch (IOException ex) {
             throw new IllegalStateException("failed to load file", ex);
         }
+    }
+
+    @Override
+    public void delete(Long tenantId, String objectKey) {
+        throw new UnsupportedOperationException("delete is not implemented yet");
     }
 }

@@ -17,7 +17,7 @@ class LocalFileStorageGatewayTest {
     void stores_file_with_server_generated_object_key() throws Exception {
         LocalFileStorageGateway gateway = new LocalFileStorageGateway(new FileStorageProperties(tempDir));
 
-        var stored = gateway.store(2001L, "report.txt", "text/plain", new ByteArrayInputStream("hello".getBytes()));
+        var stored = gateway.store(2001L, new ByteArrayInputStream("hello".getBytes()));
 
         assertThat(stored.objectKey()).isNotEqualTo("report.txt");
         assertThat(stored.objectKey()).doesNotContain("..");
