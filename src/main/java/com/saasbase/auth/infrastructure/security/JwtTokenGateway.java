@@ -49,6 +49,7 @@ public class JwtTokenGateway implements TokenGateway {
             payload.put("sub", String.valueOf(principal.userId()));
             payload.put("tenant_id", principal.tenantId());
             payload.put("username", principal.username());
+            payload.put("session_version", principal.sessionVersion());
             payload.put("jti", UUID.randomUUID().toString());
             payload.put("permissions", new ArrayList<>(principal.permissions()));
             payload.put("iat", issuedAt.getEpochSecond());
@@ -69,8 +70,9 @@ public class JwtTokenGateway implements TokenGateway {
         Long userId = Long.valueOf(String.valueOf(payload.get("sub")));
         Long tenantId = Long.valueOf(String.valueOf(payload.get("tenant_id")));
         String username = String.valueOf(payload.get("username"));
+        long sessionVersion = Long.parseLong(String.valueOf(payload.get("session_version")));
         Set<String> permissions = extractPermissions(payload.get("permissions"));
-        return new UserPrincipal(userId, tenantId, username, permissions);
+        return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion);
     }
 
     @Override
