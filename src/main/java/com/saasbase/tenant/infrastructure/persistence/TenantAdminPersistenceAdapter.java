@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Objects;
+import java.util.Locale;
 
 @Component
 public class TenantAdminPersistenceAdapter implements TenantAdminInitializer {
@@ -30,14 +30,20 @@ public class TenantAdminPersistenceAdapter implements TenantAdminInitializer {
 
     @Override
     public void initialize(Long tenantId, String username, String displayName, String rawPassword, Long operatorId) {
-        Objects.requireNonNull(tenantId, "tenantId"); Objects.requireNonNull(operatorId, "operatorId");
-        Objects.requireNonNull(rawPassword, "rawPassword");
+        requirePositive(tenantId, "tenantId");
+        requirePositive(operatorId, "operatorId");
         String normalizedUsername = requireText(username, 64, "username");
         String normalizedDisplayName = requireText(displayName, 128, "displayName");
+        requireText(rawPassword, Integer.MAX_VALUE, "rawPassword");
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         var user = new TenantAdminRecord(tenantId, normalizedUsername, normalizedDisplayName, encoder.encode(rawPassword), now, operatorId);
         try { mapper.insertUser(user); }
-        catch (DuplicateKeyException error) { throw new BizException(ErrorCode.IAM_USERNAME_CONFLICT); }
+        catch (DuplicateKeyException error) {
+            if (containsConstraint(error, "uk_iam_user_tenant_username")) {
+                throw new BizException(ErrorCode.IAM_USERNAME_CONFLICT);
+            }
+            throw error;
+        }
         requireGeneratedId(user);
         var role = new TenantAdminRecord(tenantId, "TENANT_ADMIN", "租户管理员", null, now, operatorId);
         mapper.insertRole(role);
@@ -53,6 +59,18 @@ public class TenantAdminPersistenceAdapter implements TenantAdminInitializer {
     private static String requireText(String value, int max, String name) {
         if (value == null || value.trim().isEmpty() || value.trim().length() > max) throw new IllegalArgumentException(name);
         return value.trim();
+    }
+    private static void requirePositive(Long value, String name) {
+        if (value == null || value <= 0) throw new IllegalArgumentException(name);
+    }
+    private static boolean containsConstraint(Throwable error, String constraint) {
+        String expected = constraint.toLowerCase(Locale.ROOT);
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current.getMessage() != null && current.getMessage().toLowerCase(Locale.ROOT).contains(expected)) {
+                return true;
+            }
+        }
+        return false;
     }
     private static void requireGeneratedId(TenantAdminRecord record) {
         if (record.getId() == null || record.getId() < 1) throw new IllegalStateException("Database did not generate id");
