@@ -6,25 +6,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 @Component
 public class TenantPersistenceAdapter implements TenantGateway {
-    private static final AtomicLong IDS = new AtomicLong(ThreadLocalRandom.current().nextLong(Long.MAX_VALUE));
     private final TenantMapper mapper;
-    private final LongSupplier idSupplier;
+    private final Clock clock;
 
     @Autowired
     public TenantPersistenceAdapter(TenantMapper mapper) {
-        this(mapper, () -> nextId(IDS));
+        this(mapper, Clock.systemUTC());
     }
 
-    TenantPersistenceAdapter(TenantMapper mapper, LongSupplier idSupplier) {
+    TenantPersistenceAdapter(TenantMapper mapper, Clock clock) {
         this.mapper = mapper;
-        this.idSupplier = idSupplier;
+        this.clock = clock;
     }
 
     @Override
@@ -34,14 +32,13 @@ public class TenantPersistenceAdapter implements TenantGateway {
 
     @Override
     public Tenant insert(Tenant tenant, Long operatorId) {
-        long id = idSupplier.getAsLong();
-        if (id < 0) {
-            throw new IllegalStateException("Generated tenant id must not be negative");
-        }
-        LocalDateTime now = LocalDateTime.now();
-        TenantRecord record = new TenantRecord(id, tenant.tenantCode(), tenant.tenantName(), tenant.status(),
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        TenantRecord record = new TenantRecord(null, tenant.tenantCode(), tenant.tenantName(), tenant.status(),
                 tenant.sessionVersion(), now, operatorId, now, operatorId, false, 0L);
         mapper.insert(record);
+        if (record.id() == null || record.id() < 0) {
+            throw new IllegalStateException("Database did not generate a valid tenant id");
+        }
         return toDomain(record);
     }
 
@@ -61,11 +58,15 @@ public class TenantPersistenceAdapter implements TenantGateway {
     }
 
     @Override
-    public boolean update(Tenant tenant, Long operatorId) {
-        LocalDateTime now = LocalDateTime.now();
+    public Optional<Tenant> update(Tenant tenant, Long operatorId) {
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         TenantRecord record = new TenantRecord(tenant.id(), tenant.tenantCode(), tenant.tenantName(), tenant.status(),
                 tenant.sessionVersion(), now, null, now, operatorId, false, tenant.version());
-        return mapper.update(record, operatorId) == 1;
+        if (mapper.update(record, operatorId) != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(Tenant.reconstitute(tenant.id(), tenant.tenantCode(), tenant.tenantName(), tenant.status(),
+                tenant.sessionVersion(), Math.addExact(tenant.version(), 1)));
     }
 
     private Tenant toDomain(TenantRecord record) {
@@ -85,15 +86,4 @@ public class TenantPersistenceAdapter implements TenantGateway {
         }
     }
 
-    static long nextId(AtomicLong sequence) {
-        while (true) {
-            long current = sequence.get();
-            if (current == Long.MAX_VALUE) {
-                throw new IllegalStateException("Tenant id sequence exhausted");
-            }
-            if (sequence.compareAndSet(current, current + 1)) {
-                return current;
-            }
-        }
-    }
 }

@@ -16,11 +16,17 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import org.mockito.ArgumentCaptor;
 
 @Testcontainers
 @SpringBootTest
@@ -64,13 +70,21 @@ class TenantPersistenceAdapterIntegrationTest {
     }
 
     @Test
-    void rejectsIdGenerationAfterReturningMaximumLong() {
-        AtomicLong sequence = new AtomicLong(Long.MAX_VALUE - 1);
+    void usesInjectedClockInUtcWhenInserting() {
+        TenantMapper mapper = mock(TenantMapper.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-02-03T04:05:06Z"), ZoneOffset.UTC);
+        TenantPersistenceAdapter adapter = new TenantPersistenceAdapter(mapper, clock);
+        var record = ArgumentCaptor.forClass(TenantRecord.class);
+        doAnswer(invocation -> {
+            invocation.<TenantRecord>getArgument(0).setId(1L);
+            return 1;
+        }).when(mapper).insert(record.capture());
 
-        assertThat(TenantPersistenceAdapter.nextId(sequence)).isEqualTo(Long.MAX_VALUE - 1);
-        assertThatThrownBy(() -> TenantPersistenceAdapter.nextId(sequence))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Tenant id sequence exhausted");
+        adapter.insert(Tenant.create("clock", "Clock"), 7L);
+
+        verify(mapper).insert(record.getValue());
+        assertThat(record.getValue().createdAt()).isEqualTo(LocalDateTime.of(2026, 2, 3, 4, 5, 6));
+        assertThat(record.getValue().updatedAt()).isEqualTo(record.getValue().createdAt());
     }
 
     @Test
@@ -127,8 +141,8 @@ class TenantPersistenceAdapterIntegrationTest {
         current.rename("After");
         current.disable();
 
-        assertThat(gateway.update(current, 9L)).isTrue();
-        assertThat(gateway.findById(1L)).get().satisfies(saved -> {
+        Tenant firstUpdate = gateway.update(current, 9L).orElseThrow();
+        assertThat(firstUpdate).satisfies(saved -> {
             assertThat(saved.tenantName()).isEqualTo("After");
             assertThat(saved.status()).isEqualTo(TenantStatus.DISABLED);
             assertThat(saved.sessionVersion()).isEqualTo(3);
@@ -136,9 +150,14 @@ class TenantPersistenceAdapterIntegrationTest {
         });
         assertThat(jdbcTemplate.queryForObject("SELECT updated_by FROM tenant WHERE id = 1", Long.class)).isEqualTo(9L);
 
+        firstUpdate.rename("After Again");
+        Tenant secondUpdate = gateway.update(firstUpdate, 10L).orElseThrow();
+        assertThat(secondUpdate.version()).isEqualTo(7);
+        assertThat(secondUpdate.tenantName()).isEqualTo("After Again");
+
         Tenant stale = Tenant.reconstitute(1L, "acme", "Stale", TenantStatus.ACTIVE, 99, 5);
-        assertThat(gateway.update(stale, 10L)).isFalse();
-        assertThat(gateway.findById(1L)).get().extracting(Tenant::tenantName).isEqualTo("After");
+        assertThat(gateway.update(stale, 10L)).isEmpty();
+        assertThat(gateway.findById(1L)).get().extracting(Tenant::tenantName).isEqualTo("After Again");
     }
 
     @Test
@@ -147,7 +166,7 @@ class TenantPersistenceAdapterIntegrationTest {
         jdbcTemplate.update("UPDATE tenant SET deleted = 1 WHERE id = 1");
         Tenant update = Tenant.reconstitute(1L, "deleted", "After", TenantStatus.DISABLED, 3, 5);
 
-        assertThat(gateway.update(update, 9L)).isFalse();
+        assertThat(gateway.update(update, 9L)).isEmpty();
         assertThat(jdbcTemplate.queryForMap("SELECT tenant_name, status, session_version, version, updated_by FROM tenant WHERE id = 1"))
                 .containsEntry("tenant_name", "Before")
                 .containsEntry("status", "ACTIVE")

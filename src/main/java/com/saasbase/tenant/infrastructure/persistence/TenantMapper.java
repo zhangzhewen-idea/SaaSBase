@@ -2,6 +2,7 @@ package com.saasbase.tenant.infrastructure.persistence;
 
 import com.saasbase.tenant.domain.TenantStatus;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Optional;
 
 @Mapper
 public interface TenantMapper {
+    @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(TenantRecord record);
 
     boolean existsByCode(@Param("tenantCode") String tenantCode);

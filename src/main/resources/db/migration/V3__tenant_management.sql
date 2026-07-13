@@ -1,5 +1,6 @@
 ALTER TABLE tenant
-    ADD COLUMN session_version BIGINT NOT NULL DEFAULT 0 COMMENT '租户认证会话版本' AFTER status;
+    ADD COLUMN session_version BIGINT NOT NULL DEFAULT 0 COMMENT '租户认证会话版本' AFTER status,
+    MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT;
 
 INSERT INTO iam_permission (id, permission_code, permission_name, permission_type, created_at)
 VALUES (900000000000000101, 'platform:tenant:create', '创建租户', 'API', CURRENT_TIMESTAMP(6)),

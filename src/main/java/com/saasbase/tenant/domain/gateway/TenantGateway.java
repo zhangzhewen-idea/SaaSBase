@@ -14,7 +14,7 @@ public interface TenantGateway {
 
     Page page(Query query);
 
-    boolean update(Tenant tenant, Long operatorId);
+    Optional<Tenant> update(Tenant tenant, Long operatorId);
 
     record Query(String tenantCode, String tenantName, TenantStatus status, long pageNo, long pageSize) {
         public Query {

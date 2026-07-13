@@ -24,7 +24,8 @@ class TenantContractTest {
         Method find = assertMethod(TenantGateway.class, "findById", Optional.class, Long.class);
         assertThat(find.getGenericReturnType().getTypeName()).isEqualTo("java.util.Optional<com.saasbase.tenant.domain.Tenant>");
         assertMethod(TenantGateway.class, "page", TenantGateway.Page.class, TenantGateway.Query.class);
-        assertMethod(TenantGateway.class, "update", boolean.class, Tenant.class, Long.class);
+        Method update = assertMethod(TenantGateway.class, "update", Optional.class, Tenant.class, Long.class);
+        assertThat(update.getGenericReturnType().getTypeName()).contains(Tenant.class.getName());
 
         assertThat(TenantGateway.Query.class.getRecordComponents())
                 .extracting(component -> component.getType().getName())

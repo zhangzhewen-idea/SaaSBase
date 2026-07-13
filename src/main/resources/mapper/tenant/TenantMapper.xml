@@ -26,9 +26,10 @@
         <if test="status != null">AND status = #{status}</if>
     </sql>
 
-    <insert id="insert">
-        INSERT INTO tenant (<include refid="columns"/>)
-        VALUES (#{id}, #{tenantCode}, #{tenantName}, #{status}, #{sessionVersion}, #{createdAt}, #{createdBy},
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tenant (tenant_code, tenant_name, status, session_version, created_at, created_by,
+                            updated_at, updated_by, deleted, version)
+        VALUES (#{tenantCode}, #{tenantName}, #{status}, #{sessionVersion}, #{createdAt}, #{createdBy},
                 #{updatedAt}, #{updatedBy}, #{deleted}, #{version})
     </insert>
     <select id="existsByCode" resultType="boolean">

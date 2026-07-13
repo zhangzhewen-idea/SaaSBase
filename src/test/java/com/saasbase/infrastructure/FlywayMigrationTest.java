@@ -50,6 +50,14 @@ class FlywayMigrationTest {
                 assertThat(column.next()).isFalse();
             }
 
+            try (var statement = connection.prepareStatement("""
+                    SELECT EXTRA FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'tenant' AND column_name = 'id'
+                    """); var column = statement.executeQuery()) {
+                assertThat(column.next()).isTrue();
+                assertThat(column.getString("EXTRA")).contains("auto_increment");
+            }
+
             var expectedPermissions = new LinkedHashMap<String, Permission>();
             expectedPermissions.put("platform:tenant:create", new Permission(900000000000000101L, "创建租户"));
             expectedPermissions.put("platform:tenant:read", new Permission(900000000000000102L, "查看租户"));
@@ -110,10 +118,19 @@ class FlywayMigrationTest {
 
         try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
              var statement = connection.createStatement();
-             var tenant = statement.executeQuery("SELECT session_version FROM tenant WHERE id = 1")) {
+             var tenant = statement.executeQuery("SELECT id, session_version FROM tenant WHERE id = 1")) {
             assertThat(tenant.next()).isTrue();
+            assertThat(tenant.getLong("id")).isEqualTo(1L);
             assertThat(tenant.getLong("session_version")).isZero();
             assertThat(tenant.next()).isFalse();
+            statement.executeUpdate("""
+                    INSERT INTO tenant (tenant_code, tenant_name, status, created_at, updated_at)
+                    VALUES ('new-tenant', '新租户', 'ACTIVE', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
+                    """);
+            try (var generated = statement.executeQuery("SELECT id FROM tenant WHERE tenant_code = 'new-tenant'")) {
+                assertThat(generated.next()).isTrue();
+                assertThat(generated.getLong("id")).isGreaterThan(1L).isNotNegative();
+            }
         }
     }
 
