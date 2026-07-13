@@ -2,13 +2,9 @@ package com.saasbase.file.application;
 
 import com.saasbase.common.error.BizException;
 import com.saasbase.common.error.ErrorCode;
-import com.saasbase.file.infrastructure.storage.FilePolicy;
-import com.saasbase.file.infrastructure.storage.FileStorageProperties;
-import com.saasbase.file.infrastructure.storage.ValidatedFile;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.unit.DataSize;
 
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
@@ -19,9 +15,8 @@ class FilePolicyTest {
 
     private static final long MAX_SIZE = DataSize.ofMegabytes(20).toBytes();
 
-    private final FilePolicy policy = new FilePolicy(new FileStorageProperties(
-            Path.of("./data/files"),
-            DataSize.ofMegabytes(20),
+    private final FilePolicy policy = new FilePolicy(
+            MAX_SIZE,
             Set.of("pdf", "png", "jpg", "jpeg", "docx", "xlsx"),
             Set.of("application/pdf", "image/png", "image/jpeg",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -33,7 +28,7 @@ class FilePolicyTest {
                     "jpg", Set.of("image/jpeg"),
                     "jpeg", Set.of("image/jpeg"),
                     "docx", Set.of("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-                    "xlsx", Set.of("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))));
+                    "xlsx", Set.of("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")));
 
     @Test
     void accepts_uppercase_extension_and_normalizes_it() {
