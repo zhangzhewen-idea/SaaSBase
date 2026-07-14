@@ -42,3 +42,15 @@ saasbase:
       jpeg: ["image/jpeg"]
       docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
       xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]
+  bootstrap:
+    enabled: ${SAASBASE_BOOTSTRAP_ENABLED:true}
+    platform-tenant-code: ${SAASBASE_PLATFORM_TENANT_CODE:platform}
+    platform-tenant-name: ${SAASBASE_PLATFORM_TENANT_NAME:平台管理}
+    platform-admin-username: ${SAASBASE_PLATFORM_ADMIN_USERNAME:platform-admin}
+    platform-admin-display-name: ${SAASBASE_PLATFORM_ADMIN_DISPLAY_NAME:平台管理员}
+    platform-admin-password: ${SAASBASE_PLATFORM_ADMIN_PASSWORD:Platform123!}
+    tenant-code: ${SAASBASE_TENANT_CODE:demo}
+    tenant-name: ${SAASBASE_TENANT_NAME:演示租户}
+    tenant-admin-username: ${SAASBASE_TENANT_ADMIN_USERNAME:admin}
+    tenant-admin-display-name: ${SAASBASE_TENANT_ADMIN_DISPLAY_NAME:管理员}
+    tenant-admin-password: ${SAASBASE_TENANT_ADMIN_PASSWORD:Tenant123!}

@@ -110,6 +110,19 @@ initialPassword
 
 创建响应不得返回初始密码或密码哈希。编辑请求只允许修改 `tenantName`，不得接受 `tenantCode` 或状态字段。
 
+### 5.1.1 默认初始化账号
+
+应用启动时会自动创建一组默认账号，用于首次登录和环境初始化验证：
+
+- 平台租户编码：`platform`
+- 平台管理员用户名：`platform-admin`
+- 平台管理员默认密码：`Platform123!`
+- 初始租户编码：`demo`
+- 初始租户管理员用户名：`admin`
+- 初始租户管理员默认密码：`Tenant123!`
+
+这些值支持通过环境变量覆盖。初始化逻辑默认启用，可通过 `SAASBASE_BOOTSTRAP_ENABLED=false` 临时关闭。
+
 平台分页查询支持：
 
 - `tenantCode` 精确匹配。
