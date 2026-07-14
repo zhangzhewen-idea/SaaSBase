@@ -17,7 +17,6 @@ public record FileMetadata(
         long version
 ) {
     public FileMetadata {
-        requireNonNull(id, "id");
         requireNonNull(tenantId, "tenantId");
         requireNonBlank(originalFilename, "originalFilename");
         requireNonBlank(contentType, "contentType");
@@ -25,6 +24,9 @@ public record FileMetadata(
         requireNonNull(status, "status");
         requireNonNull(createdAt, "createdAt");
         requireNonNull(createdBy, "createdBy");
+        if (id == null && status != FileStatus.UPLOADING) {
+            throw new IllegalArgumentException("id must not be null");
+        }
         if (size < 0) {
             throw new IllegalArgumentException("size must not be negative");
         }

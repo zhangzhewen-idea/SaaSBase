@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class FileApplicationService {
@@ -48,11 +47,20 @@ public class FileApplicationService {
         Long userId = TenantContextHolder.require().userId();
         var validatedFile = filePolicy.validate(originalFilename, contentType, size);
         Instant now = clock.instant();
-        long id = nextId();
         FileMetadata uploading = FileMetadata.uploading(
-                id, tenantId, validatedFile.filename(), validatedFile.contentType(), validatedFile.extension(), now, userId, 0L);
+                null,
+                tenantId,
+                validatedFile.filename(),
+                validatedFile.contentType(),
+                validatedFile.extension(),
+                now,
+                userId,
+                0L);
 
-        metadataGateway.createUploading(uploading);
+        FileMetadata created = metadataGateway.createUploading(uploading);
+        long id = created.id();
+        FileMetadata persistedUploading = FileMetadata.uploading(
+                id, tenantId, validatedFile.filename(), validatedFile.contentType(), validatedFile.extension(), now, userId, 0L);
         try {
             var stored = storageGateway.store(tenantId, inputStream);
             try {
@@ -61,7 +69,7 @@ public class FileApplicationService {
                 safeDeleteStoredObject(tenantId, stored.objectKey());
                 throw new BizException(ErrorCode.FILE_STORAGE_FAILED);
             }
-            return uploading.markAvailable(stored.storageType(), stored.objectKey(), stored.size());
+            return persistedUploading.markAvailable(stored.storageType(), stored.objectKey(), stored.size());
         } catch (RuntimeException ex) {
             cleanupUploading(id);
             if (ex instanceof BizException bizException) {
@@ -131,9 +139,5 @@ public class FileApplicationService {
         } catch (RuntimeException ignored) {
             // best effort only
         }
-    }
-
-    private long nextId() {
-        return UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
     }
 }

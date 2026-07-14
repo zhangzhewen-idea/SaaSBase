@@ -60,31 +60,34 @@ class FileMetadataPersistenceAdapterIntegrationTest {
     void creates_reads_updates_and_deletes_metadata_with_tenant_boundary() {
         Instant createdAt = Instant.parse("2026-07-13T08:00:00Z");
         FileMetadata uploading = FileMetadata.uploading(
-                7001L, 2001L, "report.pdf", "application/pdf", "pdf", createdAt, 3001L, 0L);
+                null, 2001L, "report.pdf", "application/pdf", "pdf", createdAt, 3001L, 0L);
 
-        gateway.createUploading(uploading);
+        FileMetadata created = gateway.createUploading(uploading);
+        Long fileId = created.id();
 
-        assertThat(gateway.findAvailableById(7001L)).isEmpty();
-        assertThat(gateway.findDeletableById(7001L)).isEmpty();
+        assertThat(fileId).isNotNull();
 
-        gateway.markAvailable(7001L, "local", "2001/uuid-1", 15L, 0L);
+        assertThat(gateway.findAvailableById(fileId)).isEmpty();
+        assertThat(gateway.findDeletableById(fileId)).isEmpty();
 
-        FileMetadata available = gateway.findAvailableById(7001L).orElseThrow();
+        gateway.markAvailable(fileId, "local", "2001/uuid-1", 15L, 0L);
+
+        FileMetadata available = gateway.findAvailableById(fileId).orElseThrow();
         assertThat(available.status()).isEqualTo(FileStatus.AVAILABLE);
         assertThat(available.objectKey()).isEqualTo("2001/uuid-1");
         assertThat(available.size()).isEqualTo(15L);
 
         PageResponse<FileMetadata> page = gateway.search(new FileQuery("report", "application/pdf", null, null, 1, 10));
         assertThat(page.total()).isEqualTo(1L);
-        assertThat(page.items()).singleElement().extracting(FileMetadata::id).isEqualTo(7001L);
+        assertThat(page.items()).singleElement().extracting(FileMetadata::id).isEqualTo(fileId);
 
-        gateway.logicallyDelete(7001L, 3001L, 1L);
+        gateway.logicallyDelete(fileId, 3001L, 1L);
 
-        assertThat(gateway.findAvailableById(7001L)).isEmpty();
-        assertThat(gateway.findDeletableById(7001L)).isEmpty();
+        assertThat(gateway.findAvailableById(fileId)).isEmpty();
+        assertThat(gateway.findDeletableById(fileId)).isEmpty();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT deleted FROM file_metadata WHERE id = ?",
                 Boolean.class,
-                7001L)).isTrue();
+                fileId)).isTrue();
     }
 }

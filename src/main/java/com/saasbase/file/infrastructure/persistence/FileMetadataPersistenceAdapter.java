@@ -22,8 +22,9 @@ public class FileMetadataPersistenceAdapter implements FileMetadataGateway {
 
     @Override
     public FileMetadata createUploading(FileMetadata metadata) {
-        mapper.insertUploading(toRecord(metadata));
-        return metadata;
+        FileMetadataRecord record = toRecord(metadata);
+        mapper.insertUploading(record);
+        return toDomain(record);
     }
 
     @Override
@@ -102,18 +103,24 @@ public class FileMetadataPersistenceAdapter implements FileMetadataGateway {
     }
 
     private FileMetadata toDomain(FileMetadataRecord record) {
+        String storageType = record.getStorageType();
+        String objectKey = record.getObjectKey();
+        if (record.getStatus() == com.saasbase.file.domain.FileStatus.UPLOADING) {
+            storageType = null;
+            objectKey = null;
+        }
         return new FileMetadata(
-                record.id(),
-                record.tenantId(),
-                record.storageType(),
-                record.objectKey(),
-                record.originalFilename(),
-                record.contentType(),
-                record.extension(),
-                record.size() == null ? 0L : record.size(),
-                record.status(),
-                record.createdAt(),
-                record.createdBy(),
-                record.version() == null ? 0L : record.version());
+                record.getId(),
+                record.getTenantId(),
+                storageType,
+                objectKey,
+                record.getOriginalFilename(),
+                record.getContentType(),
+                record.getExtension(),
+                record.getSize() == null ? 0L : record.getSize(),
+                record.getStatus(),
+                record.getCreatedAt(),
+                record.getCreatedBy(),
+                record.getVersion() == null ? 0L : record.getVersion());
     }
 }

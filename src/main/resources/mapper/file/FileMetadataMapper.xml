@@ -25,12 +25,12 @@
         </constructor>
     </resultMap>
 
-    <insert id="insertUploading">
+    <insert id="insertUploading" useGeneratedKeys="true" keyProperty="metadata.id" keyColumn="id">
         INSERT INTO file_metadata
-            (id, tenant_id, storage_type, object_key, original_filename, content_type, extension, size,
+            (tenant_id, storage_type, object_key, original_filename, content_type, extension, size,
              status, created_at, created_by, updated_at, updated_by, deleted, deleted_at, deleted_by, version)
         VALUES
-            (#{metadata.id}, #{metadata.tenantId}, #{metadata.storageType}, #{metadata.objectKey},
+            (#{metadata.tenantId}, #{metadata.storageType}, #{metadata.objectKey},
              #{metadata.originalFilename}, #{metadata.contentType}, #{metadata.extension}, #{metadata.size},
              #{metadata.status}, #{metadata.createdAt}, #{metadata.createdBy}, #{metadata.updatedAt},
              #{metadata.updatedBy}, #{metadata.deleted}, #{metadata.deletedAt}, #{metadata.deletedBy},

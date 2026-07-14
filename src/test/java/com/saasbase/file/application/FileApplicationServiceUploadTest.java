@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,14 +58,32 @@ class FileApplicationServiceUploadTest {
                 Clock.fixed(Instant.parse("2026-07-13T08:00:00Z"), ZoneOffset.UTC));
         when(storageGateway.store(eq(2001L), any(InputStream.class)))
                 .thenReturn(new StoredObject("local", "2001/object", 5L));
+        doAnswer(invocation -> {
+            FileMetadata metadata = invocation.getArgument(0);
+            return new FileMetadata(
+                    7001L,
+                    metadata.tenantId(),
+                    metadata.storageType(),
+                    metadata.objectKey(),
+                    metadata.originalFilename(),
+                    metadata.contentType(),
+                    metadata.extension(),
+                    metadata.size(),
+                    metadata.status(),
+                    metadata.createdAt(),
+                    metadata.createdBy(),
+                    metadata.version());
+        }).when(metadataGateway).createUploading(any(FileMetadata.class));
 
         FileMetadata result = service.upload("report.pdf", "application/pdf", 5L,
                 new ByteArrayInputStream("hello".getBytes()));
 
         verify(metadataGateway).createUploading(metadataCaptor.capture());
-        verify(metadataGateway).markAvailable( metadataCaptor.getValue().id(), "local", "2001/object", 5L, 0L);
+        assertThat(metadataCaptor.getValue().id()).isNull();
+        verify(metadataGateway).markAvailable(7001L, "local", "2001/object", 5L, 0L);
         assertThat(result.status()).isEqualTo(FileStatus.AVAILABLE);
         assertThat(result.objectKey()).isEqualTo("2001/object");
+        assertThat(result.id()).isEqualTo(7001L);
     }
 
     @Test
@@ -72,6 +91,22 @@ class FileApplicationServiceUploadTest {
         TenantContextHolder.set(new TenantContext(2001L, 3001L, false));
         FileApplicationService service = new FileApplicationService(policy(), metadataGateway, storageGateway,
                 Clock.fixed(Instant.parse("2026-07-13T08:00:00Z"), ZoneOffset.UTC));
+        doAnswer(invocation -> {
+            FileMetadata metadata = invocation.getArgument(0);
+            return new FileMetadata(
+                    7001L,
+                    metadata.tenantId(),
+                    metadata.storageType(),
+                    metadata.objectKey(),
+                    metadata.originalFilename(),
+                    metadata.contentType(),
+                    metadata.extension(),
+                    metadata.size(),
+                    metadata.status(),
+                    metadata.createdAt(),
+                    metadata.createdBy(),
+                    metadata.version());
+        }).when(metadataGateway).createUploading(any(FileMetadata.class));
         doThrow(new IllegalStateException("boom")).when(storageGateway).store(eq(2001L), any(InputStream.class));
 
         assertThatThrownBy(() -> service.upload("report.pdf", "application/pdf", 5L,
