@@ -131,7 +131,6 @@
          WHERE u.tenant_id = #{tenantId}
            AND u.deleted = 0
            AND u.status = 'ACTIVE'
-           AND r.role_code = 'TENANT_ADMIN'
            AND r.deleted = 0
            AND r.status = 'ACTIVE'
            AND u.id != #{userId}
