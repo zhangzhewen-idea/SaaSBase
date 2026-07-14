@@ -115,6 +115,19 @@ class UserPersistenceAdapterIntegrationTest {
     }
 
     @Test
+    void pagesByUsernameSubstring() {
+        insertTenant(1L, "tenant-a");
+        insertUser(11L, 1L, "alice", "ACTIVE", 0L, 1L);
+        insertUser(12L, 1L, "alicia", "ACTIVE", 0L, 1L);
+        insertUser(13L, 1L, "bob", "ACTIVE", 0L, 1L);
+        TenantContextHolder.set(new TenantContext(1L, 99L, false));
+
+        assertThat(adapter.page(1L, 99L, new UserPageQuery(1, 10, "ali", null, null, null)).items())
+                .extracting(IamUser::username)
+                .containsExactlyInAnyOrder("alice", "alicia");
+    }
+
+    @Test
     void replacesRolesCompletelyWithinTenant() {
         insertTenant(1L, "tenant-a");
         insertRole(101L, 1L, "ACTIVE");

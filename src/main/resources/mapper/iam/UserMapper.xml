@@ -45,11 +45,11 @@
         SELECT id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
                status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted
           FROM iam_user
-         WHERE tenant_id = #{tenantId}
+        WHERE tenant_id = #{tenantId}
            AND deleted = 0
            AND id != #{excludeUserId}
         <if test="query.username != null and query.username != ''">
-           AND username = #{query.username}
+           AND username LIKE CONCAT('%', #{query.username}, '%')
         </if>
         <if test="query.departmentId != null">
            AND primary_department_id = #{query.departmentId}
@@ -67,11 +67,11 @@
     <select id="countPage" resultType="long">
         SELECT COUNT(1)
           FROM iam_user
-         WHERE tenant_id = #{tenantId}
+        WHERE tenant_id = #{tenantId}
            AND deleted = 0
            AND id != #{excludeUserId}
         <if test="query.username != null and query.username != ''">
-           AND username = #{query.username}
+           AND username LIKE CONCAT('%', #{query.username}, '%')
         </if>
         <if test="query.departmentId != null">
            AND primary_department_id = #{query.departmentId}
