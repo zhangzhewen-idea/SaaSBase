@@ -1,5 +1,7 @@
 package com.saasbase.system.infrastructure.bootstrap;
 
+import com.saasbase.common.error.BizException;
+import com.saasbase.common.error.ErrorCode;
 import com.saasbase.tenant.application.TenantApplicationService;
 import com.saasbase.tenant.application.dto.CreateTenantRequest;
 import com.saasbase.tenant.domain.Tenant;
@@ -19,13 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Configuration
 @EnableConfigurationProperties(PlatformBootstrapProperties.class)
 public class PlatformAccountBootstrapRunner implements ApplicationRunner {
-    private static final Set<String> PLATFORM_PERMISSION_CODES = Set.of(
-            "platform:tenant:create",
-            "platform:tenant:read",
-            "platform:tenant:update",
-            "platform:tenant:enable",
-            "platform:tenant:disable");
-
     private final PlatformBootstrapProperties properties;
     private final TenantGateway tenantGateway;
     private final TenantApplicationService tenantApplicationService;
@@ -81,7 +76,7 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                 properties.getPlatformAdminDisplayName(),
                 properties.getPlatformAdminPassword());
         replaceUserRole(platformTenantId, userId, roleId);
-        replaceRolePermissions(platformTenantId, roleId, PLATFORM_PERMISSION_CODES);
+        replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
         return userId;
     }
 
@@ -150,6 +145,9 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
     }
 
     private void replaceRolePermissions(long tenantId, long roleId, Set<String> permissionCodes) {
+        if (permissionCodes.isEmpty()) {
+            throw new BizException(ErrorCode.IAM_PERMISSION_TEMPLATE_MISSING);
+        }
         jdbcTemplate.update("DELETE FROM iam_role_permission WHERE tenant_id = ? AND role_id = ?", tenantId, roleId);
         for (String permissionCode : permissionCodes) {
             Long permissionId = jdbcTemplate.query("""
@@ -165,6 +163,15 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
             jdbcTemplate.update("INSERT INTO iam_role_permission (tenant_id, role_id, permission_id) VALUES (?, ?, ?)",
                     tenantId, roleId, permissionId);
         }
+    }
+
+    private Set<String> findAllPermissionCodes() {
+        return new java.util.LinkedHashSet<>(jdbcTemplate.queryForList("""
+                        SELECT permission_code
+                          FROM iam_permission
+                         ORDER BY id
+                        """,
+                String.class));
     }
 
     private Long findUserId(long tenantId, String username) {

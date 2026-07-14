@@ -21,7 +21,8 @@ public class UserCredentialPersistenceAdapter implements UserCredentialGateway {
         return mapper.findByTenantCodeAndUsername(tenantCode, username)
                 .map(record -> new UserCredential(record.userId(), record.tenantId(), record.username(),
                         record.passwordHash(), toPermissions(record.permissions()),
-                        record.sessionVersion(), Boolean.TRUE.equals(record.mustChangePassword()), record.status()));
+                        record.sessionVersion(), Boolean.TRUE.equals(record.mustChangePassword()),
+                        Boolean.TRUE.equals(record.superAdmin()), record.status()));
     }
 
     private Set<String> toPermissions(String permissions) {

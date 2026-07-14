@@ -8,5 +8,6 @@ public record UserCredentialRecord(
         String permissions,
         Long sessionVersion,
         Boolean mustChangePassword,
+        Boolean superAdmin,
         String status) {
 }

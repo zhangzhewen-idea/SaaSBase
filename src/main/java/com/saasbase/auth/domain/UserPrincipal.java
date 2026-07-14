@@ -8,5 +8,6 @@ public record UserPrincipal(
         String username,
         Set<String> permissions,
         long sessionVersion,
-        boolean mustChangePassword) {
+        boolean mustChangePassword,
+        boolean superAdmin) {
 }

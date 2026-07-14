@@ -10,5 +10,6 @@ public record UserCredential(
         Set<String> permissions,
         long sessionVersion,
         boolean mustChangePassword,
+        boolean superAdmin,
         String status) {
 }

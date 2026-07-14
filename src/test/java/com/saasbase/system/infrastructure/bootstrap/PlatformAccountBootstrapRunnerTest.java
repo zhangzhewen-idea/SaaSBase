@@ -15,6 +15,7 @@ import com.saasbase.tenant.domain.TenantStatus;
 import com.saasbase.tenant.domain.gateway.TenantGateway;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -46,6 +47,36 @@ class PlatformAccountBootstrapRunnerTest {
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         AtomicLong nextId = new AtomicLong(200L);
 
+        when(jdbcTemplate.queryForList(eq("""
+                        SELECT permission_code
+                          FROM iam_permission
+                         ORDER BY id
+                        """), eq(String.class)))
+                .thenReturn(java.util.List.of(
+                        "platform:tenant:create",
+                        "platform:tenant:read",
+                        "platform:tenant:update",
+                        "platform:tenant:enable",
+                        "platform:tenant:disable",
+                        "tenant:profile:read",
+                        "tenant:user:create",
+                        "tenant:user:read",
+                        "tenant:user:update",
+                        "tenant:user:enable",
+                        "tenant:user:disable",
+                        "tenant:user:reset-password",
+                        "tenant:user:transfer-dept",
+                        "tenant:dept:read",
+                        "tenant:dept:create",
+                        "tenant:dept:update",
+                        "tenant:dept:move",
+                        "tenant:dept:disable",
+                        "tenant:dept:enable",
+                        "tenant:dept:delete",
+                        "tenant:dept:member:read",
+                        "tenant:file:write",
+                        "tenant:file:read",
+                        "tenant:file:delete"));
         when(jdbcTemplate.query(any(String.class), any(ResultSetExtractor.class), any()))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
@@ -60,14 +91,37 @@ class PlatformAccountBootstrapRunnerTest {
                         return null;
                     }
                     if (sql.contains("FROM iam_permission")) {
-                        return switch (String.valueOf(param)) {
-                            case "platform:tenant:create" -> 301L;
-                            case "platform:tenant:read" -> 302L;
-                            case "platform:tenant:update" -> 303L;
-                            case "platform:tenant:enable" -> 304L;
-                            case "platform:tenant:disable" -> 305L;
-                            default -> null;
-                        };
+                        String normalizedSql = sql.trim().replaceAll("\\s+", " ");
+                        if (normalizedSql.startsWith("SELECT id FROM iam_permission")) {
+                            return switch (String.valueOf(param)) {
+                                case "platform:tenant:create" -> 301L;
+                                case "platform:tenant:read" -> 302L;
+                                case "platform:tenant:update" -> 303L;
+                                case "platform:tenant:enable" -> 304L;
+                                case "platform:tenant:disable" -> 305L;
+                                case "tenant:profile:read" -> 306L;
+                                case "tenant:user:create" -> 307L;
+                                case "tenant:user:read" -> 308L;
+                                case "tenant:user:update" -> 309L;
+                                case "tenant:user:enable" -> 310L;
+                                case "tenant:user:disable" -> 311L;
+                                case "tenant:user:reset-password" -> 312L;
+                                case "tenant:user:transfer-dept" -> 313L;
+                                case "tenant:dept:read" -> 314L;
+                                case "tenant:dept:create" -> 315L;
+                                case "tenant:dept:update" -> 316L;
+                                case "tenant:dept:move" -> 317L;
+                                case "tenant:dept:disable" -> 318L;
+                                case "tenant:dept:enable" -> 319L;
+                                case "tenant:dept:delete" -> 320L;
+                                case "tenant:dept:member:read" -> 321L;
+                                case "tenant:file:write" -> 322L;
+                                case "tenant:file:read" -> 323L;
+                                case "tenant:file:delete" -> 324L;
+                                default -> null;
+                            };
+                        }
+                        return null;
                     }
                     return null;
                 });

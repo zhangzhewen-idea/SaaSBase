@@ -79,17 +79,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (principal.mustChangePassword() && !PASSWORD_CHANGE_WHITELIST.contains(request.getRequestURI())) {
                     throw new BizException(ErrorCode.AUTH_PASSWORD_CHANGE_REQUIRED);
                 }
+                var authorities = principal.permissions().stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toCollection(java.util.ArrayList::new));
+                if (principal.superAdmin()) {
+                    authorities.add(new SimpleGrantedAuthority("SUPER_ADMIN"));
+                }
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         principal,
                         token,
-                        principal.permissions().stream()
-                                .map(SimpleGrantedAuthority::new)
-                                .collect(Collectors.toUnmodifiableList()));
+                        authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                boolean platformRequest = principal.permissions().stream()
-                        .anyMatch(PLATFORM_PERMISSIONS::contains)
-                        && request.getRequestURI().startsWith("/api/v1/platform/");
+                boolean platformRequest = principal.superAdmin()
+                        || (principal.permissions().stream().anyMatch(PLATFORM_PERMISSIONS::contains)
+                        && request.getRequestURI().startsWith("/api/v1/platform/"));
                 TenantContextHolder.set(new TenantContext(principal.tenantId(), principal.userId(), platformRequest));
             }
             filterChain.doFilter(request, response);

@@ -8,7 +8,7 @@ public class PlatformBootstrapProperties {
     private String platformTenantCode = "platform";
     private String platformTenantName = "平台管理";
     private String platformAdminUsername = "platform-admin";
-    private String platformAdminDisplayName = "平台管理员";
+    private String platformAdminDisplayName = "超级管理员";
     private String platformAdminPassword = "Platform123!";
     private String tenantCode = "demo";
     private String tenantName = "演示租户";

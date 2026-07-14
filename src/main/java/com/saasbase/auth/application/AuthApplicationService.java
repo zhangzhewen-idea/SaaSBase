@@ -95,7 +95,8 @@ public class AuthApplicationService {
                 credential.username(),
                 credential.permissions(),
                 credential.sessionVersion(),
-                credential.mustChangePassword()));
+                credential.mustChangePassword(),
+                credential.superAdmin()));
         String refreshToken = UUID.randomUUID().toString();
         refreshTokenStore.save(refreshToken, serializeRefreshValue(credential, current.sessionVersion()),
                 Instant.now().plusSeconds(7 * 24 * 3600).getEpochSecond());
@@ -158,7 +159,9 @@ public class AuthApplicationService {
             });
             long sessionVersion = Long.parseLong(String.valueOf(data.get("sessionVersion")));
             boolean mustChangePassword = Boolean.parseBoolean(String.valueOf(data.get("mustChangePassword")));
-            return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion, mustChangePassword);
+            boolean superAdmin = data.get("superAdmin") != null
+                    && Boolean.parseBoolean(String.valueOf(data.get("superAdmin")));
+            return new UserPrincipal(userId, tenantId, username, permissions, sessionVersion, mustChangePassword, superAdmin);
         } catch (Exception exception) {
             throw new BizException(ErrorCode.AUTH_TOKEN_REVOKED);
         }
@@ -172,7 +175,8 @@ public class AuthApplicationService {
                     "username", credential.username(),
                     "permissions", credential.permissions(),
                     "sessionVersion", sessionVersion,
-                    "mustChangePassword", credential.mustChangePassword()));
+                    "mustChangePassword", credential.mustChangePassword(),
+                    "superAdmin", credential.superAdmin()));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize refresh session", exception);
         }

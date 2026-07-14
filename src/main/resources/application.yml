@@ -56,7 +56,7 @@ saasbase:
     platform-tenant-code: ${SAASBASE_PLATFORM_TENANT_CODE:platform}
     platform-tenant-name: ${SAASBASE_PLATFORM_TENANT_NAME:平台管理}
     platform-admin-username: ${SAASBASE_PLATFORM_ADMIN_USERNAME:platform-admin}
-    platform-admin-display-name: ${SAASBASE_PLATFORM_ADMIN_DISPLAY_NAME:平台管理员}
+    platform-admin-display-name: ${SAASBASE_PLATFORM_ADMIN_DISPLAY_NAME:超级管理员}
     platform-admin-password: ${SAASBASE_PLATFORM_ADMIN_PASSWORD:Platform123!}
     tenant-code: ${SAASBASE_TENANT_CODE:demo}
     tenant-name: ${SAASBASE_TENANT_NAME:演示租户}
