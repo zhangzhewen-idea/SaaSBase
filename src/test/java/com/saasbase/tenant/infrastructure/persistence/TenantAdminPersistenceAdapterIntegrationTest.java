@@ -51,7 +51,7 @@ class TenantAdminPersistenceAdapterIntegrationTest {
         var role = jdbc.queryForMap("SELECT * FROM iam_role WHERE tenant_id=11");
         assertThat(user.get("id")).isNotNull();
         assertThat(user).containsEntry("username", "admin").containsEntry("display_name", "管理员")
-                .containsEntry("status", "ACTIVE").containsEntry("created_by", 99L)
+                .containsEntry("status", "ACTIVE").containsEntry("must_change_password", false).containsEntry("created_by", 99L)
                 .containsEntry("updated_by", 99L).containsEntry("deleted", false).containsEntry("version", 0L);
         assertThat(encoder.matches("Secret123!", (String) user.get("password_hash"))).isTrue();
         assertThat(user.get("password_hash")).isNotEqualTo("Secret123!");

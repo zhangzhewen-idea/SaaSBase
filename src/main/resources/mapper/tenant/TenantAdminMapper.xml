@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.saasbase.tenant.infrastructure.persistence.TenantAdminMapper">
     <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO iam_user (tenant_id, username, password_hash, display_name, status, created_at, created_by, updated_at, updated_by, deleted, version)
-        VALUES (#{tenantId}, #{code}, #{passwordHash}, #{name}, 'ACTIVE', #{now}, #{operatorId}, #{now}, #{operatorId}, 0, 0)
+        INSERT INTO iam_user (tenant_id, username, password_hash, display_name, status, must_change_password, session_version, created_at, created_by, updated_at, updated_by, deleted, version)
+        VALUES (#{tenantId}, #{code}, #{passwordHash}, #{name}, 'ACTIVE', 0, 0, #{now}, #{operatorId}, #{now}, #{operatorId}, 0, 0)
     </insert>
     <insert id="insertRole" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO iam_role (tenant_id, role_code, role_name, created_at, created_by, updated_at, updated_by, deleted, version)
