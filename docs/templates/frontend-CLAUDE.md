@@ -55,6 +55,18 @@ src/
 - `packages/shared` 不得依赖 Vue、uni-app、浏览器对象或任一应用的别名。
 - 不在共享包中使用 `window`、`document`、`uni`、`process.client` 等平台对象。平台差异放在应用内适配层。
 
+### 文件模块入口
+
+文件模块面向租户后台，按 `/api/v1/admin/files` 提供基础文件能力。前端如果要接入文件上传、列表、详情、预览或删除，先看后端 OpenAPI，再以 `docs/postman/SaaSBase.postman_collection.json` 里的 `File` 分组作为联调入口。
+
+- 上传：`POST /api/v1/admin/files`，`multipart/form-data`，文件字段名固定为 `file`。
+- 列表：`GET /api/v1/admin/files`，支持 `filename`、`contentType`、`uploadedFrom`、`uploadedTo`、`pageNo`、`pageSize`。
+- 详情：`GET /api/v1/admin/files/{id}`。
+- 内容：`GET /api/v1/admin/files/{id}/content?disposition=inline|attachment`。
+- 删除：`DELETE /api/v1/admin/files/{id}`。
+
+文件相关页面只处理展示、筛选和触发动作；上传和下载的具体请求细节统一通过 API Client 或 `api` 层封装，不在页面里散落硬编码路径。
+
 ## 后端 API 契约
 
 后端 API 使用 REST + JSON，并按版本划分路径：
@@ -73,6 +85,39 @@ src/
 - 多租户上下文的传递方式必须以后端已发布契约为准。不得擅自假设 `tenant_id` 参数或 `X-Tenant-Id` 请求头。
 - 平台管理员 API 与租户管理员 API 必须在路由、菜单和调用层清晰分离；前端隐藏入口不是鉴权，后端鉴权始终是最终边界。
 
+### 依据当前后端 `adapter` 的前端接入边界
+
+当前后端已经明确了以下前端可依赖的接口形态，新增页面和 `api` 封装必须优先贴合这些契约：
+
+- 认证：`/api/v1/auth/login`、`/api/v1/auth/refresh`、`/api/v1/auth/logout`
+  - 登录和刷新都返回统一包装的 `ApiResponse<LoginResponse>`。
+  - 退出时会从 `Authorization: Bearer <token>` 中读取访问令牌，前端调用 logout 时应保留该请求头。
+- 租户后台用户：`/api/v1/admin/users`
+  - 列表分页参数为 `page`、`size`，不是 `pageNo`、`pageSize`。
+  - 支持 `username`、`departmentId`、`status`、`phone` 过滤。
+  - 详情、启用、停用、重置密码、转部门都在同一资源下按 `/{userId}` 子路径暴露。
+  - 所有写操作都依赖租户上下文，前端不应自行传租户 ID。
+- 租户后台部门：`/api/v1/admin/depts`
+  - 树结构通过 `/tree` 获取，成员列表通过 `/{deptId}/members` 获取。
+  - `delete`、`disable`、`enable`、`move` 都依赖版本或命令对象，前端必须保留乐观锁字段，不要删掉。
+- 租户后台租户资料：`/api/v1/admin/tenant/profile`
+  - 这是当前租户的资料视图，适合用于顶部租户信息、设置页和只读展示。
+- 平台后台租户：`/api/v1/platform/tenants`
+  - 平台侧创建、更新、启用、停用都需要额外的 `operatorId` 查询参数，前端封装时不能漏传。
+  - 平台列表使用 `TenantQuery`，分页字段为 `pageNo`、`pageSize`。
+- 文件模块：`/api/v1/admin/files`
+  - 上传字段名固定为 `file`。
+  - 列表筛选字段为 `filename`、`contentType`、`uploadedFrom`、`uploadedTo`、`pageNo`、`pageSize`。
+  - `content` 接口支持 `disposition=inline|attachment`，但只有 PDF、PNG、JPEG 允许按 `inline` 展示，其他类型应按下载处理。
+  - 列表和详情返回的 `FileView` 不包含存储实现细节，前端不要假设存在对象存储 key、bucket 或路径。
+
+### 响应与错误处理
+
+- 所有后端成功响应统一包在 `ApiResponse<T>` 中，前端应优先读取 `data`，不要把 `success` 误解为唯一判断条件。
+- 列表接口分页统一使用后端返回的 `PageResponse<T>`，其中 `items`、`total`、`pageNo`、`pageSize` 是稳定字段。
+- 对于表单校验失败、权限不足、认证失效、版本冲突和资源不存在，前端分别给出明确提示，不要用通用失败文案糊过去。
+- 需要按后端字段展示错误详情时，优先保留 `code` 和 `message`，不要自己重写语义。
+
 ## 认证、权限与安全
 
 - 登录、退出、刷新 token、切换租户和权限变更必须通过统一的认证模块处理，业务页面不得自行读写 token。
@@ -81,6 +126,8 @@ src/
 - 禁止在日志、埋点、错误提示、截图、URL 参数或前端状态持久化中暴露密码、access token、refresh token、验证码、密钥和用户隐私。
 - 菜单和按钮权限仅用于体验控制；所有敏感操作仍必须由后端授权。
 - 富文本、服务端错误信息和用户输入必须按输出位置处理，避免 XSS。没有明确必要性时，不使用 `v-html`。
+- 权限码必须与后端 `@PreAuthorize` 保持一致，例如 `tenant:user:read`、`tenant:dept:create`、`platform:tenant:disable`、`tenant:file:delete`。
+- 租户后台默认依赖当前登录上下文，平台后台按显式接口区分，不要用同一套前端菜单去猜测后端权限范围。
 
 ## UI 与多端规则
 
@@ -96,6 +143,8 @@ src/
 - Pinia store 不得成为任意 API 调用的堆放处，也不得保存可由路由或服务端重新获取的数据副本。
 - 异步请求需要明确 `loading`、`empty`、`error` 与成功状态；并发请求需避免旧响应覆盖新状态。
 - 所有列表页提供与接口契约一致的分页、筛选和空状态。删除或更新后，按当前查询条件刷新数据。
+- 页面级筛选条件要和后端参数名一一对应，不要在前端做“语义上差不多”的重命名后再手工转换。
+- 详情页和编辑页应优先复用同一套 `api` 方法和 DTO 解析逻辑，避免列表、详情、表单三套结构漂移。
 
 ## 样式与可访问性
 
@@ -159,6 +208,7 @@ pnpm build
 ## 完成前检查
 
 - [ ] 接口调用与当前 OpenAPI 契约一致，且没有手写重复 DTO。
+- [ ] 认证、租户、部门、用户、文件和平台租户接口的路径、分页字段和权限码都与后端 `adapter` 一致。
 - [ ] 多租户、平台管理员与租户管理员边界清晰。
 - [ ] 没有泄露 token、密码、密钥或隐私数据。
 - [ ] 完成受影响的 lint、类型检查、测试和构建。
