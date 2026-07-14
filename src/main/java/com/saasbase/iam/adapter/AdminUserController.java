@@ -57,6 +57,7 @@ public class AdminUserController {
             @RequestParam(required = false) String phone) {
         TenantContext context = TenantContextHolder.require();
         return ApiResponse.ok(service.page(context.tenantId(),
+                context.userId(),
                 new UserPageQuery(page, size, username, departmentId, status, phone)));
     }
 

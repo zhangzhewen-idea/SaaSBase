@@ -97,7 +97,7 @@ class AdminUserControllerTest {
 
     @Test
     void pageValidatesParametersAndUsesTenantContext() throws Exception {
-        when(service.page(anyLong(), any(UserPageQuery.class))).thenReturn(new PageResponse<>(java.util.List.of(sampleView()), 1, 1, 20));
+        when(service.page(anyLong(), anyLong(), any(UserPageQuery.class))).thenReturn(new PageResponse<>(java.util.List.of(sampleView()), 1, 1, 20));
 
         mockMvc.perform(get("/api/v1/admin/users")
                         .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("op")
@@ -111,7 +111,7 @@ class AdminUserControllerTest {
                 .andExpect(status().isBadRequest());
 
         ArgumentCaptor<UserPageQuery> captor = ArgumentCaptor.forClass(UserPageQuery.class);
-        verify(service).page(org.mockito.ArgumentMatchers.eq(2001L), captor.capture());
+        verify(service).page(org.mockito.ArgumentMatchers.eq(2001L), org.mockito.ArgumentMatchers.eq(3002L), captor.capture());
         assertThat(captor.getValue().page()).isEqualTo(1);
         assertThat(captor.getValue().size()).isEqualTo(20);
         assertThat(captor.getValue().status()).isNull();

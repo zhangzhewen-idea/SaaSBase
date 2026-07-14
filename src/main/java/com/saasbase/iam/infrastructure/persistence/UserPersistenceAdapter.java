@@ -36,9 +36,9 @@ public class UserPersistenceAdapter implements UserGateway, UserRoleAssignmentGa
     }
 
     @Override
-    public PageResponse<IamUser> page(long tenantId, UserPageQuery query) {
-        var items = mapper.listPage(tenantId, query).stream().map(this::toDomain).toList();
-        Long total = mapper.countPage(tenantId, query);
+    public PageResponse<IamUser> page(long tenantId, long excludeUserId, UserPageQuery query) {
+        var items = mapper.listPage(tenantId, excludeUserId, query).stream().map(this::toDomain).toList();
+        Long total = mapper.countPage(tenantId, excludeUserId, query);
         return new PageResponse<>(items, total == null ? 0L : total, query.page(), query.size());
     }
 

@@ -11,7 +11,7 @@ public interface UserGateway {
 
     Optional<IamUser> findById(long tenantId, long userId);
 
-    PageResponse<IamUser> page(long tenantId, UserPageQuery query);
+    PageResponse<IamUser> page(long tenantId, long excludeUserId, UserPageQuery query);
 
     void insert(IamUser user);
 

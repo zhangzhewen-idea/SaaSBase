@@ -7,6 +7,7 @@ import com.saasbase.tenant.application.dto.CreateTenantRequest;
 import com.saasbase.tenant.domain.Tenant;
 import com.saasbase.tenant.domain.gateway.TenantGateway;
 import java.util.Optional;
+import java.util.List;
 import java.util.Set;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -68,6 +69,7 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
     private Long ensurePlatformAdmin(Long platformTenantId) {
         Long existingUserId = findUserId(platformTenantId, properties.getPlatformAdminUsername());
         if (existingUserId != null) {
+            ensurePlatformDemoAccounts(platformTenantId);
             return existingUserId;
         }
         Long roleId = ensurePlatformRole(platformTenantId);
@@ -77,7 +79,20 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                 properties.getPlatformAdminPassword());
         replaceUserRole(platformTenantId, userId, roleId);
         replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
+        ensurePlatformDemoAccounts(platformTenantId);
         return userId;
+    }
+
+    private void ensurePlatformDemoAccounts(Long platformTenantId) {
+        Long roleId = ensurePlatformRole(platformTenantId);
+        replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
+        for (DemoAccount account : demoAccounts()) {
+            if (findUserId(platformTenantId, account.username()) != null) {
+                continue;
+            }
+            Long userId = insertUser(platformTenantId, account.username(), account.displayName(), account.password());
+            replaceUserRole(platformTenantId, userId, roleId);
+        }
     }
 
     private void ensureInitialTenant(Long operatorId) {
@@ -192,5 +207,17 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
             throw new IllegalStateException("Database did not generate a valid id for " + tableName);
         }
         return key.longValue();
+    }
+
+    private List<DemoAccount> demoAccounts() {
+        return List.of(
+                new DemoAccount("platform-demo-1", "平台示例账号1", "PlatformDemo123!"),
+                new DemoAccount("platform-demo-2", "平台示例账号2", "PlatformDemo123!"),
+                new DemoAccount("platform-demo-3", "平台示例账号3", "PlatformDemo123!"),
+                new DemoAccount("platform-demo-4", "平台示例账号4", "PlatformDemo123!"),
+                new DemoAccount("platform-demo-5", "平台示例账号5", "PlatformDemo123!"));
+    }
+
+    private record DemoAccount(String username, String displayName, String password) {
     }
 }

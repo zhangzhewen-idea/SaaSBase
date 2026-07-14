@@ -19,9 +19,9 @@ public interface UserMapper {
     Optional<UserRecord> findById(@Param("tenantId") long tenantId, @Param("userId") long userId);
 
     @InterceptorIgnore(tenantLine = "1")
-    List<UserRecord> listPage(@Param("tenantId") long tenantId, @Param("query") UserPageQuery query);
+    List<UserRecord> listPage(@Param("tenantId") long tenantId, @Param("excludeUserId") long excludeUserId, @Param("query") UserPageQuery query);
 
-    long countPage(@Param("tenantId") long tenantId, @Param("query") UserPageQuery query);
+    long countPage(@Param("tenantId") long tenantId, @Param("excludeUserId") long excludeUserId, @Param("query") UserPageQuery query);
 
     @InterceptorIgnore(tenantLine = "1")
     int insert(@Param("user") IamUser user);

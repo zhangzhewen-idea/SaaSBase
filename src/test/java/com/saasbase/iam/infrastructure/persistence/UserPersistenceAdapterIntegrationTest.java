@@ -1,6 +1,7 @@
 package com.saasbase.iam.infrastructure.persistence;
 
 import com.saasbase.common.tenant.TenantContextHolder;
+import com.saasbase.common.tenant.TenantContext;
 import com.saasbase.iam.domain.IamUser;
 import com.saasbase.iam.domain.UserPageQuery;
 import com.saasbase.iam.domain.UserStatus;
@@ -97,8 +98,13 @@ class UserPersistenceAdapterIntegrationTest {
         insertUser(11L, 1L, "alice", "ACTIVE", 3L, 1L);
         insertUser(12L, 1L, "bob", "ACTIVE", 5L, 5L);
         insertUser(13L, 1L, "carol", "ACTIVE", 4L, 4L);
+        TenantContextHolder.set(new TenantContext(1L, 12L, false));
 
-        assertThat(adapter.page(1L, new UserPageQuery(1, 10, null, null, null, null)).items())
+        assertThat(adapter.page(1L, 12L, new UserPageQuery(1, 10, null, null, null, null)).items())
+                .extracting(IamUser::id)
+                .containsExactly(13L, 11L);
+
+        assertThat(adapter.page(1L, 99L, new UserPageQuery(1, 10, null, null, null, null)).items())
                 .extracting(IamUser::id)
                 .containsExactly(13L, 12L, 11L);
 

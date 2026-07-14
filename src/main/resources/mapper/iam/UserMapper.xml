@@ -47,6 +47,7 @@
           FROM iam_user
          WHERE tenant_id = #{tenantId}
            AND deleted = 0
+           AND id != #{excludeUserId}
         <if test="query.username != null and query.username != ''">
            AND username = #{query.username}
         </if>
@@ -68,6 +69,7 @@
           FROM iam_user
          WHERE tenant_id = #{tenantId}
            AND deleted = 0
+           AND id != #{excludeUserId}
         <if test="query.username != null and query.username != ''">
            AND username = #{query.username}
         </if>

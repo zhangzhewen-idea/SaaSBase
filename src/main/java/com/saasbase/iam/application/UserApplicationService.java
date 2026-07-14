@@ -84,8 +84,8 @@ public class UserApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<UserView> page(long tenantId, UserPageQuery query) {
-        PageResponse<IamUser> page = userGateway.page(tenantId, query);
+    public PageResponse<UserView> page(long tenantId, long operatorId, UserPageQuery query) {
+        PageResponse<IamUser> page = userGateway.page(tenantId, operatorId, query);
         return new PageResponse<>(
                 page.items().stream().map(user -> toView(user, userRoleAssignmentGateway.findRoleIds(tenantId, user.id()))).toList(),
                 page.total(),

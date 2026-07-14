@@ -6,7 +6,9 @@ import com.saasbase.iam.application.dto.UserCommands.ChangePasswordCommand;
 import com.saasbase.iam.application.dto.UserCommands.CreateUserCommand;
 import com.saasbase.iam.application.dto.UserCommands.UpdateUserCommand;
 import com.saasbase.iam.domain.IamUser;
+import com.saasbase.common.api.PageResponse;
 import com.saasbase.iam.domain.UserStatus;
+import com.saasbase.iam.domain.UserPageQuery;
 import com.saasbase.iam.domain.gateway.DepartmentReferenceGateway;
 import com.saasbase.iam.domain.gateway.UserGateway;
 import com.saasbase.iam.domain.gateway.UserRoleAssignmentGateway;
@@ -120,6 +122,21 @@ class UserApplicationServiceTest {
 
         assertThatThrownBy(() -> service.disable(1L, 99L, 12L, 3L))
                 .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void pageExcludesOperatorItself() {
+        IamUser alice = new IamUser(11L, 1L, "alice", "hash-a", UserStatus.ACTIVE, false, 3L);
+        IamUser bob = new IamUser(12L, 1L, "bob", "hash-b", UserStatus.ACTIVE, false, 3L);
+        when(userGateway.page(eq(1L), eq(99L), any(UserPageQuery.class)))
+                .thenReturn(new PageResponse<>(java.util.List.of(alice, bob), 2L, 1, 20));
+        when(userRoleAssignmentGateway.findRoleIds(1L, 11L)).thenReturn(Set.of(1L));
+        when(userRoleAssignmentGateway.findRoleIds(1L, 12L)).thenReturn(Set.of(2L));
+
+        PageResponse<?> page = service.page(1L, 99L, new UserPageQuery(1, 20, null, null, null, null));
+
+        assertThat(page.items()).hasSize(2);
+        verify(userGateway).page(1L, 99L, new UserPageQuery(1, 20, null, null, null, null));
     }
 
     private CreateUserCommand createCommand() {
