@@ -1,23 +1,12 @@
 services:
-  migration:
-    image: eclipse-temurin:25-jre
-    profiles: ["migration"]
-    working_dir: /app
-    volumes:
-      - ./target/saasbase-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      SAASBASE_DATASOURCE_URL: ${SAASBASE_MIGRATION_DATASOURCE_URL}
-      SAASBASE_DATASOURCE_USERNAME: ${SAASBASE_MIGRATION_DATASOURCE_USERNAME}
-      SAASBASE_DATASOURCE_PASSWORD: ${SAASBASE_MIGRATION_DATASOURCE_PASSWORD}
-      SAASBASE_JWT_SECRET: ${SAASBASE_JWT_SECRET}
-    command: ["java", "-Dspring.flyway.enabled=true", "-Dspring.main.web-application-type=none", "-jar", "/app/app.jar"]
-
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: saasbase:0.1.0
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SAASBASE_DATASOURCE_URL: ${SAASBASE_DATASOURCE_URL}
+      SAASBASE_DATASOURCE_HOST: ${SAASBASE_DATASOURCE_HOST}
       SAASBASE_DATASOURCE_USERNAME: ${SAASBASE_DATASOURCE_USERNAME}
       SAASBASE_DATASOURCE_PASSWORD: ${SAASBASE_DATASOURCE_PASSWORD}
       SAASBASE_REDIS_HOST: ${SAASBASE_REDIS_HOST}

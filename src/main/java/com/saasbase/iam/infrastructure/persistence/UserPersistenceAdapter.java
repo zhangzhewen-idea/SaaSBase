@@ -37,24 +37,8 @@ public class UserPersistenceAdapter implements UserGateway, UserRoleAssignmentGa
 
     @Override
     public PageResponse<IamUser> page(long tenantId, UserPageQuery query) {
-        var offset = (query.page() - 1L) * query.size();
-        var items = jdbcTemplate.query("""
-                        SELECT id, tenant_id, username, password_hash, display_name, phone, primary_department_id,
-                               status, must_change_password, session_version, last_login_at, version, created_at, updated_at, deleted
-                          FROM iam_user
-                         WHERE tenant_id = ?
-                           AND deleted = 0
-                         ORDER BY created_at DESC, id DESC
-                         LIMIT ? OFFSET ?
-                        """,
-                this::mapRecord,
-                tenantId, query.size(), offset).stream().map(this::toDomain).toList();
-        Long total = jdbcTemplate.queryForObject("""
-                SELECT COUNT(1)
-                  FROM iam_user
-                 WHERE tenant_id = ?
-                   AND deleted = 0
-                """, Long.class, tenantId);
+        var items = mapper.listPage(tenantId, query).stream().map(this::toDomain).toList();
+        Long total = mapper.countPage(tenantId, query);
         return new PageResponse<>(items, total == null ? 0L : total, query.page(), query.size());
     }
 
