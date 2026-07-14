@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.anyString;
 
 import com.saasbase.tenant.application.TenantApplicationService;
 import com.saasbase.tenant.application.dto.CreateTenantRequest;
@@ -87,6 +88,9 @@ class PlatformAccountBootstrapRunnerTest {
                     if (sql.contains("FROM iam_role")) {
                         return null;
                     }
+                    if (sql.contains("FROM iam_dept")) {
+                        return null;
+                    }
                     if (sql.contains("FROM iam_user")) {
                         return null;
                     }
@@ -125,6 +129,7 @@ class PlatformAccountBootstrapRunnerTest {
                     }
                     return null;
                 });
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
         when(jdbcTemplate.update(any(PreparedStatementCreator.class), any(KeyHolder.class)))
                 .thenAnswer(invocation -> {
                     KeyHolder keyHolder = invocation.getArgument(1);

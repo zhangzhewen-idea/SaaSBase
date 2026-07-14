@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Configuration
 @EnableConfigurationProperties(PlatformBootstrapProperties.class)
 public class PlatformAccountBootstrapRunner implements ApplicationRunner {
+    private static final String PLATFORM_ROOT_DEPT_CODE = "PLATFORM_ROOT";
+    private static final String PLATFORM_ROOT_DEPT_NAME = "平台根部门";
+
     private final PlatformBootstrapProperties properties;
     private final TenantGateway tenantGateway;
     private final TenantApplicationService tenantApplicationService;
@@ -49,6 +52,9 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
         }
         Long platformTenantId = ensurePlatformTenant();
         Long platformAdminId = ensurePlatformAdmin(platformTenantId);
+        Long platformRootDepartmentId = ensurePlatformRootDepartment(platformTenantId, platformAdminId);
+        assignUserDepartment(platformTenantId, platformAdminId, platformRootDepartmentId);
+        ensurePlatformDemoAccounts(platformTenantId, platformRootDepartmentId);
         ensureInitialTenant(platformAdminId);
     }
 
@@ -69,7 +75,6 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
     private Long ensurePlatformAdmin(Long platformTenantId) {
         Long existingUserId = findUserId(platformTenantId, properties.getPlatformAdminUsername());
         if (existingUserId != null) {
-            ensurePlatformDemoAccounts(platformTenantId);
             return existingUserId;
         }
         Long roleId = ensurePlatformRole(platformTenantId);
@@ -79,11 +84,20 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                 properties.getPlatformAdminPassword());
         replaceUserRole(platformTenantId, userId, roleId);
         replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
-        ensurePlatformDemoAccounts(platformTenantId);
         return userId;
     }
 
-    private void ensurePlatformDemoAccounts(Long platformTenantId) {
+    private Long ensurePlatformRootDepartment(Long platformTenantId, Long operatorId) {
+        Long existingDepartmentId = findDepartmentId(platformTenantId, PLATFORM_ROOT_DEPT_CODE);
+        if (existingDepartmentId != null) {
+            return existingDepartmentId;
+        }
+        Long departmentId = insertDepartment(platformTenantId, PLATFORM_ROOT_DEPT_CODE, PLATFORM_ROOT_DEPT_NAME, operatorId);
+        assignUserDepartment(platformTenantId, operatorId, departmentId);
+        return departmentId;
+    }
+
+    private void ensurePlatformDemoAccounts(Long platformTenantId, Long platformRootDepartmentId) {
         Long roleId = ensurePlatformRole(platformTenantId);
         replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
         for (DemoAccount account : demoAccounts()) {
@@ -91,6 +105,7 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                 continue;
             }
             Long userId = insertUser(platformTenantId, account.username(), account.displayName(), account.password());
+            assignUserDepartment(platformTenantId, userId, platformRootDepartmentId);
             replaceUserRole(platformTenantId, userId, roleId);
         }
     }
@@ -154,9 +169,40 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
         return requireGeneratedId(keyHolder, "iam_role");
     }
 
+    private Long insertDepartment(long tenantId, String deptCode, String deptName, Long operatorId) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            var statement = connection.prepareStatement("""
+                    INSERT INTO iam_dept
+                    (tenant_id, parent_id, dept_code, dept_name, sort_order, status,
+                     created_at, created_by, updated_at, updated_by, deleted, version)
+                    VALUES (?, NULL, ?, ?, 0, 'ACTIVE', CURRENT_TIMESTAMP(6), ?, CURRENT_TIMESTAMP(6), ?, 0, 0)
+                    """, java.sql.Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, tenantId);
+            statement.setString(2, deptCode);
+            statement.setString(3, deptName);
+            statement.setLong(4, operatorId);
+            statement.setLong(5, operatorId);
+            return statement;
+        }, keyHolder);
+        return requireGeneratedId(keyHolder, "iam_dept");
+    }
+
     private void replaceUserRole(long tenantId, long userId, long roleId) {
         jdbcTemplate.update("DELETE FROM iam_user_role WHERE tenant_id = ? AND user_id = ?", tenantId, userId);
         jdbcTemplate.update("INSERT INTO iam_user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)", tenantId, userId, roleId);
+    }
+
+    private void assignUserDepartment(long tenantId, long userId, Long departmentId) {
+        jdbcTemplate.update("""
+                        UPDATE iam_user
+                           SET primary_department_id = ?,
+                               updated_at = CURRENT_TIMESTAMP(6)
+                         WHERE tenant_id = ?
+                           AND id = ?
+                           AND deleted = 0
+                        """,
+                departmentId, tenantId, userId);
     }
 
     private void replaceRolePermissions(long tenantId, long roleId, Set<String> permissionCodes) {
@@ -199,6 +245,18 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                         """,
                 rs -> rs.next() ? rs.getLong("id") : null,
                 tenantId, username);
+    }
+
+    private Long findDepartmentId(long tenantId, String deptCode) {
+        return jdbcTemplate.query("""
+                        SELECT id
+                          FROM iam_dept
+                         WHERE tenant_id = ?
+                           AND dept_code = ?
+                           AND deleted = 0
+                        """,
+                rs -> rs.next() ? rs.getLong("id") : null,
+                tenantId, deptCode);
     }
 
     private Long requireGeneratedId(KeyHolder keyHolder, String tableName) {
