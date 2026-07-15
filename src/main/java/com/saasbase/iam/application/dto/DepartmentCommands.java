@@ -8,7 +8,7 @@ public final class DepartmentCommands {
     }
 
     public record CreateDepartmentCommand(
-            @NotNull Long parentId,
+            Long parentId,
             @NotBlank String deptCode,
             @NotBlank String deptName,
             long sortOrder) {
