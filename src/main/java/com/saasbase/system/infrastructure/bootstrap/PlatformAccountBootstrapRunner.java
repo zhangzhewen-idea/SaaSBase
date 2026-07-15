@@ -92,7 +92,8 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
         if (existingDepartmentId != null) {
             return existingDepartmentId;
         }
-        Long departmentId = insertDepartment(platformTenantId, PLATFORM_ROOT_DEPT_CODE, PLATFORM_ROOT_DEPT_NAME, operatorId);
+        Long departmentId = nextId();
+        insertDepartment(platformTenantId, departmentId, PLATFORM_ROOT_DEPT_CODE, PLATFORM_ROOT_DEPT_NAME, operatorId);
         assignUserDepartment(platformTenantId, operatorId, departmentId);
         return departmentId;
     }
@@ -101,10 +102,12 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
         Long roleId = ensurePlatformRole(platformTenantId);
         replaceRolePermissions(platformTenantId, roleId, findAllPermissionCodes());
         for (DemoAccount account : demoAccounts()) {
-            if (findUserId(platformTenantId, account.username()) != null) {
+            Long userId = findUserId(platformTenantId, account.username());
+            if (userId != null) {
+                assignUserDepartment(platformTenantId, userId, platformRootDepartmentId);
                 continue;
             }
-            Long userId = insertUser(platformTenantId, account.username(), account.displayName(), account.password());
+            userId = insertUser(platformTenantId, account.username(), account.displayName(), account.password());
             assignUserDepartment(platformTenantId, userId, platformRootDepartmentId);
             replaceUserRole(platformTenantId, userId, roleId);
         }
@@ -169,23 +172,14 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
         return requireGeneratedId(keyHolder, "iam_role");
     }
 
-    private Long insertDepartment(long tenantId, String deptCode, String deptName, Long operatorId) {
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            var statement = connection.prepareStatement("""
-                    INSERT INTO iam_dept
-                    (tenant_id, parent_id, dept_code, dept_name, sort_order, status,
-                     created_at, created_by, updated_at, updated_by, deleted, version)
-                    VALUES (?, NULL, ?, ?, 0, 'ACTIVE', CURRENT_TIMESTAMP(6), ?, CURRENT_TIMESTAMP(6), ?, 0, 0)
-                    """, java.sql.Statement.RETURN_GENERATED_KEYS);
-            statement.setLong(1, tenantId);
-            statement.setString(2, deptCode);
-            statement.setString(3, deptName);
-            statement.setLong(4, operatorId);
-            statement.setLong(5, operatorId);
-            return statement;
-        }, keyHolder);
-        return requireGeneratedId(keyHolder, "iam_dept");
+    private void insertDepartment(long tenantId, long departmentId, String deptCode, String deptName, Long operatorId) {
+        jdbcTemplate.update("""
+                        INSERT INTO iam_dept
+                        (id, tenant_id, parent_id, dept_code, dept_name, sort_order, status,
+                         created_at, created_by, updated_at, updated_by, deleted, version)
+                        VALUES (?, ?, NULL, ?, ?, 0, 'ACTIVE', CURRENT_TIMESTAMP(6), ?, CURRENT_TIMESTAMP(6), ?, 0, 0)
+                        """,
+                departmentId, tenantId, deptCode, deptName, operatorId, operatorId);
     }
 
     private void replaceUserRole(long tenantId, long userId, long roleId) {
@@ -274,6 +268,10 @@ public class PlatformAccountBootstrapRunner implements ApplicationRunner {
                 new DemoAccount("platform-demo-3", "平台示例账号3", "PlatformDemo123!"),
                 new DemoAccount("platform-demo-4", "平台示例账号4", "PlatformDemo123!"),
                 new DemoAccount("platform-demo-5", "平台示例账号5", "PlatformDemo123!"));
+    }
+
+    private long nextId() {
+        return System.currentTimeMillis();
     }
 
     private record DemoAccount(String username, String displayName, String password) {
